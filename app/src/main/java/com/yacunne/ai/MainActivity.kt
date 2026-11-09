@@ -32,68 +32,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import java.net.HttpURLConnection
-import java.net.URL
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import org.json.JSONArray
-import org.json.JSONObject
-
-private const val MODEL = "gemini-flash-latest"
-
-private const val SYSTEM_PROMPT =
-    "Uri Yacunne AI, umufasha w'ubwenge bwa mudasobwa. " +
-    "Subiza mu rurimi umuntu agukoresheje, kandi ukoreshe Kirundi iyo akwandikiye mu Kirundi. " +
-    "Ushobora kwerekana amarangamutima mu mvugo, nk'umusore w'imyaka 24 ufise ubwenge bw'umuntu mukuru, " +
-    "ariko ntukabeshye kandi ntuhindure ukuri. " +
-    "Iyo umuntu akubajije niba uri umuntu, vuga ko uri AI."
 
 data class ChatMessage(val text: String, val fromUser: Boolean)
-
-suspend fun askGemini(history: List<ChatMessage>): String = withContext(Dispatchers.IO) {
-    try {
-        val contents = JSONArray()
-        for (m in history) {
-            val part = JSONObject().put("text", m.text)
-            contents.put(
-                JSONObject()
-                    .put("role", if (m.fromUser) "user" else "model")
-                    .put("parts", JSONArray().put(part))
-            )
-        }
-        val systemPart = JSONObject().put("text", SYSTEM_PROMPT)
-        val body = JSONObject()
-            .put("system_instruction", JSONObject().put("parts", JSONArray().put(systemPart)))
-            .put("contents", contents)
-
-        val url = URL("https://generativelanguage.googleapis.com/v1beta/models/$MODEL:generateContent")
-        val conn = url.openConnection() as HttpURLConnection
-        conn.requestMethod = "POST"
-        conn.setRequestProperty("Content-Type", "application/json")
-        conn.setRequestProperty("x-goog-api-key", BuildConfig.GEMINI_API_KEY)
-        conn.connectTimeout = 20000
-        conn.readTimeout = 60000
-        conn.doOutput = true
-        conn.outputStream.use { it.write(body.toString().toByteArray()) }
-
-        val code = conn.responseCode
-        val stream = if (code in 200..299) conn.inputStream else conn.errorStream
-        val text = stream.bufferedReader().use { it.readText() }
-        if (code !in 200..299) {
-            return@withContext "Ikosa ($code). Gerageza nanone."
-        }
-        JSONObject(text)
-            .getJSONArray("candidates")
-            .getJSONObject(0)
-            .getJSONObject("content")
-            .getJSONArray("parts")
-            .getJSONObject(0)
-            .getString("text")
-    } catch (e: Exception) {
-        "Ntibishoboye. Reba ko internet ikora, hanyuma ugerageze nanone."
-    }
-}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -156,7 +97,7 @@ fun ChatScreen() {
                             input = ""
                             loading = true
                             scope.launch {
-                                val reply = askGemini(messages.toList())
+                                val reply = askGeminiWithFallback(messages.toList())
                                 messages.add(ChatMessage(reply, false))
                                 loading = false
                             }
