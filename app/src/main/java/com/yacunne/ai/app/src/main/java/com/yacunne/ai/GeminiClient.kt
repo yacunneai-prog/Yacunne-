@@ -8,6 +8,8 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
+private var workingModel = "gemini-flash-latest"
+
 private val BACKUP_MODELS = listOf("gemini-2.5-flash")
 
 private const val SYSTEM_TEXT =
@@ -15,7 +17,7 @@ private const val SYSTEM_TEXT =
     "Subiza mu rurimi umuntu agukoresheje, kandi ukoreshe Kirundi iyo akwandikiye mu Kirundi. " +
     "Ushobora kwerekana amarangamutima mu mvugo, nk'umusore w'imyaka 24 ufise ubwenge bw'umuntu mukuru, " +
     "ariko ntukabeshye kandi ntuhindure ukuri. " +
-    "Iyo umuntu akubajije niba uri umuntu, vuga ko uri AI."
+    "Iyo umuntu akubajije niba uri umuntu, vuga ko uri yacunne AI."
 
 private class GeminiResult(val code: Int, val body: String)
 
@@ -27,8 +29,8 @@ private fun callModel(model: String, requestBody: String): GeminiResult {
     conn.setRequestProperty("Connection", "close")
     conn.setRequestProperty("Content-Type", "application/json")
     conn.setRequestProperty("x-goog-api-key", BuildConfig.GEMINI_API_KEY.trim())
-    conn.connectTimeout = 20000
-    conn.readTimeout = 60000
+    conn.connectTimeout = 10000
+    conn.readTimeout = 45000
     conn.doOutput = true
     try {
         conn.outputStream.use { it.write(requestBody.toByteArray()) }
@@ -93,6 +95,38 @@ private fun extractText(body: String): String {
     }
 }
 
+private suspend fun tryModel(model: String, requestBody: String, errors: MutableList<String>): String? {
+    var attempts = 0
+    while (attempts < 4) {
+        attempts++
+        val result = try {
+            callModel(model, requestBody)
+        } catch (e: java.io.IOException) {
+            errors.add(model + ": " + e.javaClass.simpleName)
+            delay(1000)
+            continue
+        }
+        if (result.code in 200..299) {
+            return extractText(result.body)
+        }
+        val msg = "(" + result.code + ") " + model + ": " + shortMessage(result.body)
+        if (result.code == 401 || result.code == 403 ||
+            (result.code == 400 && result.body.contains("API key"))
+        ) {
+            errors.add("FATAL " + msg)
+            return null
+        }
+        errors.add(msg)
+        if (result.code == 500 || result.code == 503) {
+            if (attempts >= 2) return null
+            delay(1000)
+            continue
+        }
+        return null
+    }
+    return null
+}
+
 suspend fun askGeminiWithFallback(history: List<ChatMessage>): String = withContext(Dispatchers.IO) {
     try {
         val contents = JSONArray()
@@ -110,38 +144,33 @@ suspend fun askGeminiWithFallback(history: List<ChatMessage>): String = withCont
             .put("contents", contents)
             .toString()
 
-        val models = (listOf("gemini-flash-latest") + listFlashModels() + BACKUP_MODELS)
-            .distinct()
-            .take(6)
-
         val errors = mutableListOf<String>()
-        for (model in models) {
-            for (attempt in 1..2) {
-                val result = try {
-                    callModel(model, requestBody)
-                } catch (e: java.io.IOException) {
-                    errors.add(model + ": " + e.javaClass.simpleName)
-                    null
-                }
-                if (result == null) {
-                    delay(1000)
-                    continue
-                }
-                if (result.code in 200..299) {
-                    return@withContext extractText(result.body)
-                }
-                errors.add("(" + result.code + ") " + model + ": " + shortMessage(result.body))
-                if (result.code == 401 || result.code == 403) {
-                    return@withContext "Ikosa " + errors.last()
-                }
-                if (result.code == 400 && result.body.contains("API key")) {
-                    return@withContext "Ikosa " + errors.last()
-                }
-                if (result.code == 400 || result.code == 404 || result.code == 429) break
-                delay(1000)
+        val first = tryModel(workingModel, requestBody, errors)
+        if (first != null) {
+            return@withContext first
+        }
+        if (errors.lastOrNull()?.startsWith("FATAL") == true) {
+            return@withContext "Ikosa " + errors.last().removePrefix("FATAL ")
+        }
+        if (errors.none { it.startsWith("(") }) {
+            return@withContext "Internet ntikora neza muri iki gihe. Ongera ugerageze mu kanya."
+        }
+
+        val others = (listFlashModels() + BACKUP_MODELS)
+            .distinct()
+            .filter { it != workingModel }
+            .take(4)
+        for (m in others) {
+            val text = tryModel(m, requestBody, errors)
+            if (text != null) {
+                workingModel = m
+                return@withContext text
+            }
+            if (errors.lastOrNull()?.startsWith("FATAL") == true) {
+                return@withContext "Ikosa " + errors.last().removePrefix("FATAL ")
             }
         }
-        "Ntibishoboye:\n" + errors.takeLast(6).joinToString("\n")
+        "Ntibishoboye:\n" + errors.takeLast(5).joinToString("\n")
     } catch (e: Exception) {
         "Ntibishoboye: " + e.javaClass.simpleName + " - " + (e.message ?: "").take(150)
     }
