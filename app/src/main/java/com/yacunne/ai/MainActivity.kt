@@ -1,5 +1,6 @@
 package com.yacunne.ai
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -36,8 +37,13 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
@@ -128,6 +134,8 @@ fun ChatScreen() {
     var loading by remember { mutableStateOf(false) }
     var streaming by remember { mutableStateOf<String?>(null) }
     var job by remember { mutableStateOf<Job?>(null) }
+    var showAbout by remember { mutableStateOf(false) }
+    var showClearConfirm by remember { mutableStateOf(false) }
 
     val messages: List<ChatMessage> =
         conversations.firstOrNull { it.id == currentId }?.messages ?: emptyList()
@@ -163,6 +171,25 @@ fun ChatScreen() {
             currentId = UUID.randomUUID().toString()
         }
         persist()
+    }
+
+    fun clearAll() {
+        stopGenerating()
+        conversations.clear()
+        currentId = UUID.randomUUID().toString()
+        persist()
+    }
+
+    fun shareChat() {
+        if (messages.isEmpty()) return
+        val body = messages.joinToString("\n\n") {
+            (if (it.fromUser) "Wowe: " else "Yacunne AI: ") + it.text
+        }
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, body)
+        }
+        context.startActivity(Intent.createChooser(intent, "Sangiza ikiganiro"))
     }
 
     fun sendText(raw: String) {
@@ -254,7 +281,11 @@ fun ChatScreen() {
         ) {
             ChatHeader(
                 onMenu = { scope.launch { drawerState.open() } },
-                onNewChat = { newChat() }
+                onNewChat = { newChat() },
+                onShare = { shareChat() },
+                onDeleteChat = { deleteConversation(currentId) },
+                onClearAll = { showClearConfirm = true },
+                onAbout = { showAbout = true }
             )
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 if (messages.isEmpty() && streaming == null) {
@@ -300,6 +331,32 @@ fun ChatScreen() {
                 onSend = { sendText(input) },
                 onStop = { stopGenerating() }
             )
+            if (showAbout) {
+                AlertDialog(
+                    onDismissRequest = { showAbout = false },
+                    confirmButton = {
+                        TextButton(onClick = { showAbout = false }) { Text("Sawa") }
+                    },
+                    title = { Text("Yacunne AI") },
+                    text = { Text("Umufasha wawe wa AI. Ibiganiro byawe bibikwa kuri telefone yawe.") }
+                )
+            }
+            if (showClearConfirm) {
+                AlertDialog(
+                    onDismissRequest = { showClearConfirm = false },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            showClearConfirm = false
+                            clearAll()
+                        }) { Text("Siba byose") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showClearConfirm = false }) { Text("Reka") }
+                    },
+                    title = { Text("Gusiba amateka yose?") },
+                    text = { Text("Ibiganiro byose bizasibwa kandi ntibishobora kugarurwa.") }
+                )
+            }
         }
     }
 }
@@ -524,7 +581,15 @@ fun LogoY(size: Int) {
 }
 
 @Composable
-fun ChatHeader(onMenu: () -> Unit, onNewChat: () -> Unit) {
+fun ChatHeader(
+    onMenu: () -> Unit,
+    onNewChat: () -> Unit,
+    onShare: () -> Unit,
+    onDeleteChat: () -> Unit,
+    onClearAll: () -> Unit,
+    onAbout: () -> Unit
+) {
+    var menuOpen by remember { mutableStateOf(false) }
     Column(modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 8.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
@@ -532,65 +597,71 @@ fun ChatHeader(onMenu: () -> Unit, onNewChat: () -> Unit) {
         ) {
             Icon(
                 Icons.Filled.Menu,
-                contentDescription = "Menu",
+                contentDescription = "Amateka",
                 tint = Color.White,
                 modifier = Modifier
-                    .size(40.dp)
+                    .size(36.dp)
                     .clip(CircleShape)
                     .clickable { onMenu() }
-                    .padding(8.dp)
+                    .padding(7.dp)
             )
-            Spacer(modifier = Modifier.width(4.dp))
-            LogoY(40)
-            Spacer(modifier = Modifier.width(8.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        "YACUNNE",
-                        color = Color.White,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 0.5.sp
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        "AI",
-                        color = NeonPurple,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.ExtraBold
-                    )
-                }
-                Text(
-                    "Your Smart AI Assistant",
-                    color = SoftText,
-                    fontSize = 11.sp,
-                    fontStyle = FontStyle.Italic
-                )
-            }
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Color(0xFF2A1F0A))
-                    .border(1.5.dp, Gold, RoundedCornerShape(20.dp))
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
-            ) {
-                Text(
-                    "\uD83D\uDC51 Pro",
-                    color = Gold,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp
-                )
-            }
+            Spacer(modifier = Modifier.weight(1f))
             Icon(
                 Icons.Filled.Edit,
                 contentDescription = "Ikiganiro gishya",
                 tint = Color.White,
                 modifier = Modifier
-                    .size(40.dp)
+                    .size(36.dp)
                     .clip(CircleShape)
                     .clickable { onNewChat() }
-                    .padding(8.dp)
+                    .padding(7.dp)
             )
+            Box {
+                Icon(
+                    Icons.Filled.MoreVert,
+                    contentDescription = "Igenamiterere",
+                    tint = Color.White,
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .clickable { menuOpen = true }
+                        .padding(7.dp)
+                )
+                DropdownMenu(
+                    expanded = menuOpen,
+                    onDismissRequest = { menuOpen = false },
+                    modifier = Modifier.background(Color(0xFF0D1233))
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Sangiza ikiganiro", color = Color.White) },
+                        onClick = {
+                            menuOpen = false
+                            onShare()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Siba ikiganiro", color = Color.White) },
+                        onClick = {
+                            menuOpen = false
+                            onDeleteChat()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Siba amateka yose", color = Color.White) },
+                        onClick = {
+                            menuOpen = false
+                            onClearAll()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Ibijyanye na app", color = Color.White) },
+                        onClick = {
+                            menuOpen = false
+                            onAbout()
+                        }
+                    )
+                }
+            }
         }
         Spacer(modifier = Modifier.height(8.dp))
         Box(
