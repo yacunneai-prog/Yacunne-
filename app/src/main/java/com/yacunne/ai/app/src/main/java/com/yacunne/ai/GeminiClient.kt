@@ -8,9 +8,9 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
-private var workingModel = "gemini-2.5-flash"
+private var workingModel = "gemini-flash-latest"
 
-private val BACKUP_MODELS = listOf("gemini-flash-latest")
+private val BACKUP_MODELS = emptyList<String>()
 
 private const val SYSTEM_TEXT =
     "You are Yacunne AI, a friendly AI assistant. " +
@@ -196,6 +196,9 @@ suspend fun askGeminiWithFallback(history: List<ChatMessage>): String = withCont
             if (errors.lastOrNull()?.startsWith("FATAL") == true) {
                 return@withContext "Ikosa " + errors.last().removePrefix("FATAL ")
             }
+        }
+        if (errors.count { it.startsWith("(429)") } >= 2) {
+            return@withContext "Limit ya Gemini yarashize (quota). Tegereza akanya cyangwa ukoreshe API key nshya."
         }
         "Ntibishoboye:\n" + errors.takeLast(5).joinToString("\n")
     } catch (e: Exception) {
