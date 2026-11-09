@@ -8,12 +8,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
-private val MODEL_LIST = listOf(
-    "gemini-flash-latest",
-    "gemini-flash-lite-latest",
-    "gemini-2.5-flash",
-    "gemini-2.5-flash-lite"
-)
+private val BACKUP_MODELS = listOf("gemini-2.5-flash")
 
 private const val SYSTEM_TEXT =
     "Uri Yacunne AI, umufasha w'ubwenge bwa mudasobwa. " +
@@ -46,24 +41,41 @@ private fun callModel(model: String, requestBody: String): GeminiResult {
     }
 }
 
-private fun testGoogle(): String {
+private fun listFlashModels(): List<String> {
     return try {
-        val conn = URL("https://www.google.com/generate_204").openConnection() as HttpURLConnection
-        conn.connectTimeout = 8000
-        conn.readTimeout = 8000
-        val code = conn.responseCode
-        conn.disconnect()
-        "google.com OK (" + code + ")"
+        val url = URL("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200")
+        val conn = url.openConnection() as HttpURLConnection
+        conn.setRequestProperty("x-goog-api-key", BuildConfig.GEMINI_API_KEY.trim())
+        conn.connectTimeout = 10000
+        conn.readTimeout = 15000
+        val body = try {
+            conn.inputStream.bufferedReader().use { it.readText() }
+        } finally {
+            conn.disconnect()
+        }
+        val arr = JSONObject(body).getJSONArray("models")
+        val skip = listOf("image", "tts", "live", "audio", "robotics", "computer", "embedding", "thinking", "exp")
+        val names = mutableListOf<String>()
+        for (i in 0 until arr.length()) {
+            val item = arr.getJSONObject(i)
+            val name = item.getString("name").removePrefix("models/")
+            val methods = item.optJSONArray("supportedGenerationMethods")?.toString() ?: ""
+            if (!methods.contains("generateContent")) continue
+            if (!name.contains("flash")) continue
+            if (skip.any { name.contains(it) }) continue
+            names.add(name)
+        }
+        names.sortedDescending()
     } catch (e: Exception) {
-        "google.com: " + e.javaClass.simpleName
+        emptyList()
     }
 }
 
 private fun shortMessage(body: String): String {
     return try {
-        JSONObject(body).getJSONObject("error").getString("message").take(120)
+        JSONObject(body).getJSONObject("error").getString("message").take(70)
     } catch (e: Exception) {
-        body.take(120)
+        body.take(70)
     }
 }
 
@@ -98,31 +110,38 @@ suspend fun askGeminiWithFallback(history: List<ChatMessage>): String = withCont
             .put("contents", contents)
             .toString()
 
-        var lastError = ""
-        for (model in MODEL_LIST) {
-            for (attempt in 1..3) {
+        val models = (listOf("gemini-flash-latest") + listFlashModels() + BACKUP_MODELS)
+            .distinct()
+            .take(6)
+
+        val errors = mutableListOf<String>()
+        for (model in models) {
+            for (attempt in 1..2) {
                 val result = try {
                     callModel(model, requestBody)
                 } catch (e: java.io.IOException) {
-                    lastError = e.javaClass.simpleName + ": " + (e.message ?: "").take(80)
+                    errors.add(model + ": " + e.javaClass.simpleName)
                     null
                 }
                 if (result == null) {
-                    delay(1500)
+                    delay(1000)
                     continue
                 }
                 if (result.code in 200..299) {
                     return@withContext extractText(result.body)
                 }
-                lastError = "(" + result.code + ") " + model + ": " + shortMessage(result.body)
-                if (result.code == 400 || result.code == 401 || result.code == 403) {
-                    return@withContext "Ikosa " + lastError
+                errors.add("(" + result.code + ") " + model + ": " + shortMessage(result.body))
+                if (result.code == 401 || result.code == 403) {
+                    return@withContext "Ikosa " + errors.last()
                 }
-                if (result.code == 404) break
-                delay(1500)
+                if (result.code == 400 && result.body.contains("API key")) {
+                    return@withContext "Ikosa " + errors.last()
+                }
+                if (result.code == 400 || result.code == 404 || result.code == 429) break
+                delay(1000)
             }
         }
-        "Ntibishoboye. " + lastError + " | " + testGoogle()
+        "Ntibishoboye:\n" + errors.takeLast(6).joinToString("\n")
     } catch (e: Exception) {
         "Ntibishoboye: " + e.javaClass.simpleName + " - " + (e.message ?: "").take(150)
     }
