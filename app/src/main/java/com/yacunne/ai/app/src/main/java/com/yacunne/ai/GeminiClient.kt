@@ -8,9 +8,9 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
-private var workingModel = "gemini-flash-latest"
+private var workingModel = "gemini-2.5-flash"
 
-private val BACKUP_MODELS = listOf("gemini-2.5-flash")
+private val BACKUP_MODELS = listOf("gemini-flash-latest")
 
 private const val SYSTEM_TEXT =
     "You are Yacunne AI, a friendly AI assistant. " +
@@ -33,6 +33,30 @@ private const val SYSTEM_TEXT =
 
 private class GeminiResult(val code: Int, val body: String)
 
+private fun buildBody(history: List<ChatMessage>, model: String): String {
+    val contents = JSONArray()
+    for (m in history) {
+        val part = JSONObject().put("text", m.text)
+        contents.put(
+            JSONObject()
+                .put("role", if (m.fromUser) "user" else "model")
+                .put("parts", JSONArray().put(part))
+        )
+    }
+    val systemPart = JSONObject().put("text", SYSTEM_TEXT)
+    val body = JSONObject()
+        .put("system_instruction", JSONObject().put("parts", JSONArray().put(systemPart)))
+        .put("contents", contents)
+    // Kuzimya "gutekereza" kwa 2.5 flash kugira ngo igisubizo kize vuba
+    if (model.contains("2.5") && model.contains("flash")) {
+        body.put(
+            "generationConfig",
+            JSONObject().put("thinkingConfig", JSONObject().put("thinkingBudget", 0))
+        )
+    }
+    return body.toString()
+}
+
 private fun callModel(model: String, requestBody: String): GeminiResult {
     val url = URL("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent")
     val conn = url.openConnection() as HttpURLConnection
@@ -41,8 +65,8 @@ private fun callModel(model: String, requestBody: String): GeminiResult {
     conn.setRequestProperty("Connection", "close")
     conn.setRequestProperty("Content-Type", "application/json")
     conn.setRequestProperty("x-goog-api-key", BuildConfig.GEMINI_API_KEY.trim())
-    conn.connectTimeout = 10000
-    conn.readTimeout = 45000
+    conn.connectTimeout = 8000
+    conn.readTimeout = 30000
     conn.doOutput = true
     try {
         conn.outputStream.use { it.write(requestBody.toByteArray()) }
@@ -60,8 +84,8 @@ private fun listFlashModels(): List<String> {
         val url = URL("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200")
         val conn = url.openConnection() as HttpURLConnection
         conn.setRequestProperty("x-goog-api-key", BuildConfig.GEMINI_API_KEY.trim())
-        conn.connectTimeout = 10000
-        conn.readTimeout = 15000
+        conn.connectTimeout = 8000
+        conn.readTimeout = 12000
         val body = try {
             conn.inputStream.bufferedReader().use { it.readText() }
         } finally {
@@ -107,15 +131,21 @@ private fun extractText(body: String): String {
     }
 }
 
-private suspend fun tryModel(model: String, requestBody: String, errors: MutableList<String>): String? {
+private suspend fun tryModel(
+    model: String,
+    history: List<ChatMessage>,
+    errors: MutableList<String>
+): String? {
+    val requestBody = buildBody(history, model)
     var attempts = 0
-    while (attempts < 4) {
+    while (attempts < 3) {
         attempts++
         val result = try {
             callModel(model, requestBody)
         } catch (e: java.io.IOException) {
             errors.add(model + ": " + e.javaClass.simpleName)
-            delay(1000)
+            if (attempts >= 2) return null
+            delay(700)
             continue
         }
         if (result.code in 200..299) {
@@ -131,7 +161,7 @@ private suspend fun tryModel(model: String, requestBody: String, errors: Mutable
         errors.add(msg)
         if (result.code == 500 || result.code == 503) {
             if (attempts >= 2) return null
-            delay(1000)
+            delay(700)
             continue
         }
         return null
@@ -141,23 +171,8 @@ private suspend fun tryModel(model: String, requestBody: String, errors: Mutable
 
 suspend fun askGeminiWithFallback(history: List<ChatMessage>): String = withContext(Dispatchers.IO) {
     try {
-        val contents = JSONArray()
-        for (m in history) {
-            val part = JSONObject().put("text", m.text)
-            contents.put(
-                JSONObject()
-                    .put("role", if (m.fromUser) "user" else "model")
-                    .put("parts", JSONArray().put(part))
-            )
-        }
-        val systemPart = JSONObject().put("text", SYSTEM_TEXT)
-        val requestBody = JSONObject()
-            .put("system_instruction", JSONObject().put("parts", JSONArray().put(systemPart)))
-            .put("contents", contents)
-            .toString()
-
         val errors = mutableListOf<String>()
-        val first = tryModel(workingModel, requestBody, errors)
+        val first = tryModel(workingModel, history, errors)
         if (first != null) {
             return@withContext first
         }
@@ -168,12 +183,12 @@ suspend fun askGeminiWithFallback(history: List<ChatMessage>): String = withCont
             return@withContext "Internet ntikora neza muri iki gihe. Ongera ugerageze mu kanya."
         }
 
-        val others = (listFlashModels() + BACKUP_MODELS)
+        val others = (BACKUP_MODELS + listFlashModels())
             .distinct()
             .filter { it != workingModel }
             .take(4)
         for (m in others) {
-            val text = tryModel(m, requestBody, errors)
+            val text = tryModel(m, history, errors)
             if (text != null) {
                 workingModel = m
                 return@withContext text
