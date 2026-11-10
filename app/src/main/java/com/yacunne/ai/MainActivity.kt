@@ -27,53 +27,52 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Create
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -84,9 +83,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -104,21 +100,9 @@ import kotlinx.coroutines.launch
 
 data class ChatMessage(val text: String, val fromUser: Boolean)
 
-private val NeonPurple = Color(0xFF8B5CF6)
 private val NeonBlue = Color(0xFF3B82F6)
 private val DeepNavy = Color(0xFF0B0F1A)
-private val MidNavy = Color(0xFF0B1140)
-private val DeepViolet = Color(0xFF1A0B3B)
-private val BubbleDark = Color(0xFF1C2540)
-private val BubbleBorder = Color(0xFF3D4A75)
 private val SoftText = Color(0xFFBCC4E0)
-private val Gold = Color(0xFFF5B63D)
-private val DrawerBg = Color(0xFFF5F4EF)
-private val DrawerText = Color(0xFF1B1B1F)
-private val DrawerMuted = Color(0xFF6B6B73)
-private val DrawerLine = Color(0xFFDAD8CF)
-private val DrawerSel = Color(0xFFE6E4DB)
-private val DrawerAccent = Color(0xFF2563EB)
 
 private class Pal(
     val bg: Color,
@@ -129,7 +113,13 @@ private class Pal(
     val userBubble: Color,
     val userText: Color,
     val placeholder: Color,
-    val accent: Color
+    val accent: Color,
+    val panel: Color,
+    val panelCard: Color,
+    val panelText: Color,
+    val panelMuted: Color,
+    val panelSel: Color,
+    val panelLine: Color
 )
 
 private val DarkPal = Pal(
@@ -141,7 +131,13 @@ private val DarkPal = Pal(
     userBubble = Color(0xFF1E3A8A),
     userText = Color(0xFFF1F2FF),
     placeholder = Color(0xFFA3ABC8),
-    accent = Color(0xFF3B82F6)
+    accent = Color(0xFF3B82F6),
+    panel = Color(0xFF111827),
+    panelCard = Color(0xFF1C2540),
+    panelText = Color(0xFFF1F2FF),
+    panelMuted = Color(0xFF9AA3C2),
+    panelSel = Color(0xFF26335A),
+    panelLine = Color(0xFF2A3355)
 )
 
 private val LightPal = Pal(
@@ -153,7 +149,13 @@ private val LightPal = Pal(
     userBubble = Color(0xFFDCE7FF),
     userText = Color(0xFF14213D),
     placeholder = Color(0xFF8A8D99),
-    accent = Color(0xFF2563EB)
+    accent = Color(0xFF2563EB),
+    panel = Color(0xFFF5F4EF),
+    panelCard = Color(0xFFFFFFFF),
+    panelText = Color(0xFF1B1B1F),
+    panelMuted = Color(0xFF6B6B73),
+    panelSel = Color(0xFFE6E4DB),
+    panelLine = Color(0xFFDAD8CF)
 )
 
 private val LocalPal = compositionLocalOf { DarkPal }
@@ -162,9 +164,18 @@ private val NeonColors = darkColorScheme(
     primary = NeonBlue,
     onPrimary = Color.White,
     background = DeepNavy,
-    surface = DeepNavy,
+    surface = Color(0xFF111827),
     onBackground = Color(0xFFF1F2FF),
     onSurface = Color(0xFFF1F2FF)
+)
+
+private val LightColors = lightColorScheme(
+    primary = Color(0xFF2563EB),
+    onPrimary = Color.White,
+    background = LightPal.bg,
+    surface = Color.White,
+    onBackground = LightPal.text,
+    onSurface = LightPal.text
 )
 
 class MainActivity : ComponentActivity() {
@@ -367,7 +378,8 @@ fun ChatScreen() {
         val extra = buildExtra(
             conv.mode,
             projects.firstOrNull { it.id == conv.projectId }?.instructions ?: "",
-            settings
+            settings,
+            userName
         )
         job = scope.launch {
             val target = java.util.concurrent.atomic.AtomicReference("")
@@ -411,6 +423,17 @@ fun ChatScreen() {
         }
     }
 
+    fun regenerate() {
+        if (loading) return
+        val idx = conversations.indexOfFirst { it.id == currentId }
+        if (idx < 0) return
+        val c = conversations[idx]
+        if (c.messages.isEmpty() || c.messages.last().fromUser) return
+        conversations[idx] = c.copy(messages = c.messages.dropLast(1))
+        persist()
+        ask(currentId)
+    }
+
     fun sendText(raw: String) {
         val text = raw.trim()
         if (text.isEmpty() || loading) return
@@ -427,289 +450,308 @@ fun ChatScreen() {
         }
     }
 
+    BackHandler(enabled = drawerState.isOpen) {
+        scope.launch { drawerState.close() }
+    }
+
     CompositionLocalProvider(LocalPal provides pal) {
-    Box(modifier = Modifier.fillMaxSize()) {
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            ModalDrawerSheet(drawerContainerColor = DrawerBg) {
-                DrawerContent(
-                    conversations = conversations,
-                    projects = projects,
-                    currentId = currentId,
-                    activeProjectId = activeProjectId,
-                    onNew = {
-                        newChat()
-                        scope.launch { drawerState.close() }
-                    },
-                    onOpen = { id ->
-                        stopGenerating()
-                        currentId = id
-                        scope.launch { drawerState.close() }
-                    },
-                    onDelete = { id -> deleteConversation(id) },
-                    onToggleStar = { id -> toggleStar(id) },
-                    onRename = { id -> renameId = id },
-                    onMove = { id, pid -> moveToProject(id, pid) },
-                    onSelectProject = { id ->
-                        activeProjectId = if (activeProjectId == id) "" else id
-                    },
-                    onNewProject = {
-                        editingProject = null
-                        showProjectDialog = true
-                    },
-                    onEditProject = { p ->
-                        editingProject = p
-                        showProjectDialog = true
-                    },
-                    onSettings = {
-                        showSettings = true
-                        scope.launch { drawerState.close() }
-                    },
-                    onStart = { mode ->
-                        newChat()
-                        newMode = mode
-                        sendText(modePrompt(mode))
-                        scope.launch { drawerState.close() }
+        MaterialTheme(colorScheme = if (dark) NeonColors else LightColors) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                ModalNavigationDrawer(
+                    drawerState = drawerState,
+                    drawerContent = {
+                        ModalDrawerSheet(drawerContainerColor = pal.panel) {
+                            DrawerContent(
+                                conversations = conversations,
+                                projects = projects,
+                                currentId = currentId,
+                                activeProjectId = activeProjectId,
+                                onNew = {
+                                    newChat()
+                                    scope.launch { drawerState.close() }
+                                },
+                                onOpen = { id ->
+                                    stopGenerating()
+                                    currentId = id
+                                    scope.launch { drawerState.close() }
+                                },
+                                onDelete = { id -> deleteConversation(id) },
+                                onToggleStar = { id -> toggleStar(id) },
+                                onRename = { id -> renameId = id },
+                                onMove = { id, pid -> moveToProject(id, pid) },
+                                onSelectProject = { id ->
+                                    activeProjectId = if (activeProjectId == id) "" else id
+                                },
+                                onNewProject = {
+                                    editingProject = null
+                                    showProjectDialog = true
+                                },
+                                onEditProject = { p ->
+                                    editingProject = p
+                                    showProjectDialog = true
+                                },
+                                onSettings = {
+                                    showSettings = true
+                                    scope.launch { drawerState.close() }
+                                },
+                                onStart = { mode ->
+                                    newChat()
+                                    newMode = mode
+                                    sendText(modePrompt(mode))
+                                    scope.launch { drawerState.close() }
+                                }
+                            )
+                        }
                     }
-                )
-            }
-        }
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(pal.bg)
-                .statusBarsPadding()
-                .navigationBarsPadding()
-                .imePadding()
-        ) {
-            ChatHeader(
-                onMenu = { scope.launch { drawerState.open() } },
-                onNewChat = { newChat() },
-                onShare = { shareChat() },
-                onDeleteChat = { deleteConversation(currentId) },
-                onClearAll = { showClearConfirm = true },
-                onAbout = { showAbout = true }
-            )
-            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                if (messages.isEmpty() && streaming == null) {
-                    EmptyState(userName = userName, onPick = { sendText(it) })
-                } else {
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(pal.bg)
+                            .statusBarsPadding()
+                            .navigationBarsPadding()
+                            .imePadding()
                     ) {
-                        items(messages) { message ->
-                            MessageRow(
-                                textSize = textSize,
-                                message = message,
-                                onCopy = {
-                                    clipboard.setText(AnnotatedString(it))
-                                    android.widget.Toast.makeText(context, "Vyakoporowe", android.widget.Toast.LENGTH_SHORT).show()
-                                }
-                            )
-                        }
-                        val live = streaming
-                        if (live != null) {
-                            item {
-                                MessageRow(
-                                    textSize = textSize,
-                                    message = ChatMessage(live, false),
-                                    onCopy = null
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-            if (loading && streaming == null) {
-                Text(
-                    "Irimo gutekereza...",
-                    color = pal.soft,
-                    fontSize = 13.sp,
-                    fontStyle = FontStyle.Italic,
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
-                )
-            }
-            val err = errorMsg
-            if (err != null && !loading) {
-                ErrorBanner(
-                    text = err,
-                    onRetry = { ask(currentId) },
-                    onClose = { errorMsg = null }
-                )
-            }
-            InputBar(
-                input = input,
-                onInputChange = { input = it },
-                loading = loading,
-                onSend = { sendText(input) },
-                onStop = { stopGenerating() }
-            )
-            if (showAbout) {
-                AlertDialog(
-                    onDismissRequest = { showAbout = false },
-                    confirmButton = {
-                        TextButton(onClick = { showAbout = false }) { Text("Sawa") }
-                    },
-                    title = { Text("Yacunne AI") },
-                    text = { Text("Umufasha wawe wa AI. Ibiganiro byawe bibikwa kuri telefone yawe.") }
-                )
-            }
-            if (showProfile) {
-                var draft by remember { mutableStateOf(userName) }
-                AlertDialog(
-                    onDismissRequest = { showProfile = false },
-                    confirmButton = {
-                        TextButton(onClick = {
-                            val n = draft.trim().take(30)
-                            ProfileStore.save(context, n)
-                            userName = n
-                            showProfile = false
-                        }) { Text("Bika") }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showProfile = false }) { Text("Reka") }
-                    },
-                    title = { Text("Konti yawe") },
-                    text = {
-                        Column {
-                            Text("Andika izina ryawe. Ibiganiro byawe ntibizosibwa.")
-                            Spacer(modifier = Modifier.height(12.dp))
-                            TextField(
-                                value = draft,
-                                onValueChange = { draft = it },
-                                singleLine = true,
-                                placeholder = { Text("Izina ryawe") }
-                            )
-                        }
-                    }
-                )
-            }
-            if (showProjectDialog) {
-                val editing = editingProject
-                var nameDraft by remember { mutableStateOf(editing?.name ?: "") }
-                var instrDraft by remember { mutableStateOf(editing?.instructions ?: "") }
-                AlertDialog(
-                    onDismissRequest = { showProjectDialog = false },
-                    confirmButton = {
-                        TextButton(onClick = {
-                            val n = nameDraft.trim().take(30)
-                            if (n.isNotEmpty()) {
-                                val instr = instrDraft.trim().take(600)
-                                if (editing == null) {
-                                    projects.add(Project(UUID.randomUUID().toString(), n, instr))
-                                } else {
-                                    val i = projects.indexOfFirst { it.id == editing.id }
-                                    if (i >= 0) projects[i] = editing.copy(name = n, instructions = instr)
-                                }
-                                ProjectStore.save(context, projects.toList())
-                                showProjectDialog = false
-                            }
-                        }) { Text("Bika") }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showProjectDialog = false }) { Text("Reka") }
-                    },
-                    title = { Text(if (editing == null) "Umushinga mushasha" else "Hindura umushinga") },
-                    text = {
-                        Column {
-                            TextField(
-                                value = nameDraft,
-                                onValueChange = { nameDraft = it },
-                                singleLine = true,
-                                placeholder = { Text("Izina ry'umushinga") }
-                            )
-                            Spacer(modifier = Modifier.height(10.dp))
-                            TextField(
-                                value = instrDraft,
-                                onValueChange = { instrDraft = it },
-                                maxLines = 5,
-                                placeholder = { Text("Amabwiriza ya Yacunne kuri uyu mushinga (si ngombwa)") }
-                            )
-                            if (editing != null) {
-                                TextButton(onClick = {
-                                    projects.removeAll { it.id == editing.id }
-                                    for (i in conversations.indices) {
-                                        if (conversations[i].projectId == editing.id) {
-                                            conversations[i] = conversations[i].copy(projectId = "")
+                        ChatHeader(
+                            onMenu = { scope.launch { drawerState.open() } },
+                            onNewChat = { newChat() },
+                            onShare = { shareChat() },
+                            onDeleteChat = { deleteConversation(currentId) },
+                            onClearAll = { showClearConfirm = true },
+                            onAbout = { showAbout = true }
+                        )
+                        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                            if (messages.isEmpty() && streaming == null) {
+                                EmptyState(userName = userName, onPick = { sendText(it) })
+                            } else {
+                                LazyColumn(
+                                    state = listState,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    itemsIndexed(messages) { index, message ->
+                                        val canRegenerate =
+                                            index == messages.lastIndex && !message.fromUser && !loading
+                                        MessageRow(
+                                            textSize = textSize,
+                                            message = message,
+                                            onCopy = {
+                                                clipboard.setText(AnnotatedString(it))
+                                                android.widget.Toast.makeText(
+                                                    context,
+                                                    "Vyakoporowe",
+                                                    android.widget.Toast.LENGTH_SHORT
+                                                ).show()
+                                            },
+                                            onRegenerate = if (canRegenerate) ({ regenerate() }) else null
+                                        )
+                                    }
+                                    val live = streaming
+                                    if (live != null) {
+                                        item {
+                                            MessageRow(
+                                                textSize = textSize,
+                                                message = ChatMessage(live, false),
+                                                onCopy = null,
+                                                onRegenerate = null
+                                            )
                                         }
                                     }
-                                    if (activeProjectId == editing.id) activeProjectId = ""
-                                    ProjectStore.save(context, projects.toList())
-                                    persist()
-                                    showProjectDialog = false
-                                }) { Text("Siba umushinga", color = Color(0xFFFF8A8A)) }
+                                }
                             }
                         }
-                    }
-                )
-            }
-            val rid = renameId
-            if (rid != null) {
-                var titleDraft by remember {
-                    mutableStateOf(conversations.firstOrNull { it.id == rid }?.title ?: "")
-                }
-                AlertDialog(
-                    onDismissRequest = { renameId = null },
-                    confirmButton = {
-                        TextButton(onClick = {
-                            val t = titleDraft.trim().take(40)
-                            if (t.isNotEmpty()) renameConv(rid, t)
-                            renameId = null
-                        }) { Text("Bika") }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { renameId = null }) { Text("Reka") }
-                    },
-                    title = { Text("Hindura izina ry'ikiganiro") },
-                    text = {
-                        TextField(
-                            value = titleDraft,
-                            onValueChange = { titleDraft = it },
-                            singleLine = true
+                        if (loading && streaming == null) {
+                            Text(
+                                "Irimo gutekereza...",
+                                color = pal.soft,
+                                fontSize = 13.sp,
+                                fontStyle = FontStyle.Italic,
+                                modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
+                            )
+                        }
+                        val err = errorMsg
+                        if (err != null && !loading) {
+                            ErrorBanner(
+                                text = err,
+                                onRetry = { ask(currentId) },
+                                onClose = { errorMsg = null }
+                            )
+                        }
+                        InputBar(
+                            input = input,
+                            onInputChange = { input = it },
+                            loading = loading,
+                            onSend = { sendText(input) },
+                            onStop = { stopGenerating() }
                         )
+                        if (showAbout) {
+                            AlertDialog(
+                                onDismissRequest = { showAbout = false },
+                                confirmButton = {
+                                    TextButton(onClick = { showAbout = false }) { Text("Sawa") }
+                                },
+                                title = { Text("Yacunne AI") },
+                                text = {
+                                    Text(
+                                        "Umufasha wawe wa AI. Ibiganiro byawe bibikwa kuri telefone yawe. " +
+                                            "Ubutumwa bwawe bwoherezwa kuri Google Gemini kugira ngo butange ibisubizo."
+                                    )
+                                }
+                            )
+                        }
+                        if (showProfile) {
+                            var draft by remember { mutableStateOf(userName) }
+                            AlertDialog(
+                                onDismissRequest = { showProfile = false },
+                                confirmButton = {
+                                    TextButton(onClick = {
+                                        val n = draft.trim().take(30)
+                                        ProfileStore.save(context, n)
+                                        userName = n
+                                        showProfile = false
+                                    }) { Text("Bika") }
+                                },
+                                dismissButton = {
+                                    TextButton(onClick = { showProfile = false }) { Text("Reka") }
+                                },
+                                title = { Text("Konti yawe") },
+                                text = {
+                                    Column {
+                                        Text("Andika izina ryawe. Yacunne izaryifashisha mu kuganira nawe.")
+                                        Spacer(modifier = Modifier.height(12.dp))
+                                        TextField(
+                                            value = draft,
+                                            onValueChange = { draft = it },
+                                            singleLine = true,
+                                            placeholder = { Text("Izina ryawe") }
+                                        )
+                                    }
+                                }
+                            )
+                        }
+                        if (showProjectDialog) {
+                            val editing = editingProject
+                            var nameDraft by remember { mutableStateOf(editing?.name ?: "") }
+                            var instrDraft by remember { mutableStateOf(editing?.instructions ?: "") }
+                            AlertDialog(
+                                onDismissRequest = { showProjectDialog = false },
+                                confirmButton = {
+                                    TextButton(onClick = {
+                                        val n = nameDraft.trim().take(30)
+                                        if (n.isNotEmpty()) {
+                                            val instr = instrDraft.trim().take(600)
+                                            if (editing == null) {
+                                                projects.add(Project(UUID.randomUUID().toString(), n, instr))
+                                            } else {
+                                                val i = projects.indexOfFirst { it.id == editing.id }
+                                                if (i >= 0) projects[i] = editing.copy(name = n, instructions = instr)
+                                            }
+                                            ProjectStore.save(context, projects.toList())
+                                            showProjectDialog = false
+                                        }
+                                    }) { Text("Bika") }
+                                },
+                                dismissButton = {
+                                    TextButton(onClick = { showProjectDialog = false }) { Text("Reka") }
+                                },
+                                title = { Text(if (editing == null) "Umushinga mushasha" else "Hindura umushinga") },
+                                text = {
+                                    Column {
+                                        TextField(
+                                            value = nameDraft,
+                                            onValueChange = { nameDraft = it },
+                                            singleLine = true,
+                                            placeholder = { Text("Izina ry'umushinga") }
+                                        )
+                                        Spacer(modifier = Modifier.height(10.dp))
+                                        TextField(
+                                            value = instrDraft,
+                                            onValueChange = { instrDraft = it },
+                                            maxLines = 5,
+                                            placeholder = { Text("Amabwiriza ya Yacunne kuri uyu mushinga (si ngombwa)") }
+                                        )
+                                        if (editing != null) {
+                                            TextButton(onClick = {
+                                                projects.removeAll { it.id == editing.id }
+                                                for (i in conversations.indices) {
+                                                    if (conversations[i].projectId == editing.id) {
+                                                        conversations[i] = conversations[i].copy(projectId = "")
+                                                    }
+                                                }
+                                                if (activeProjectId == editing.id) activeProjectId = ""
+                                                ProjectStore.save(context, projects.toList())
+                                                persist()
+                                                showProjectDialog = false
+                                            }) { Text("Siba umushinga", color = Color(0xFFFF8A8A)) }
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                        val rid = renameId
+                        if (rid != null) {
+                            var titleDraft by remember {
+                                mutableStateOf(conversations.firstOrNull { it.id == rid }?.title ?: "")
+                            }
+                            AlertDialog(
+                                onDismissRequest = { renameId = null },
+                                confirmButton = {
+                                    TextButton(onClick = {
+                                        val t = titleDraft.trim().take(40)
+                                        if (t.isNotEmpty()) renameConv(rid, t)
+                                        renameId = null
+                                    }) { Text("Bika") }
+                                },
+                                dismissButton = {
+                                    TextButton(onClick = { renameId = null }) { Text("Reka") }
+                                },
+                                title = { Text("Hindura izina ry'ikiganiro") },
+                                text = {
+                                    TextField(
+                                        value = titleDraft,
+                                        onValueChange = { titleDraft = it },
+                                        singleLine = true
+                                    )
+                                }
+                            )
+                        }
+                        if (showClearConfirm) {
+                            AlertDialog(
+                                onDismissRequest = { showClearConfirm = false },
+                                confirmButton = {
+                                    TextButton(onClick = {
+                                        showClearConfirm = false
+                                        clearAll()
+                                    }) { Text("Siba byose") }
+                                },
+                                dismissButton = {
+                                    TextButton(onClick = { showClearConfirm = false }) { Text("Reka") }
+                                },
+                                title = { Text("Gusiba amateka yose?") },
+                                text = { Text("Ibiganiro byose bizasibwa kandi ntibishobora kugarurwa.") }
+                            )
+                        }
                     }
-                )
-            }
-            if (showClearConfirm) {
-                AlertDialog(
-                    onDismissRequest = { showClearConfirm = false },
-                    confirmButton = {
-                        TextButton(onClick = {
-                            showClearConfirm = false
-                            clearAll()
-                        }) { Text("Siba byose") }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showClearConfirm = false }) { Text("Reka") }
-                    },
-                    title = { Text("Gusiba amateka yose?") },
-                    text = { Text("Ibiganiro byose bizasibwa kandi ntibishobora kugarurwa.") }
-                )
+                }
+                if (showSettings) {
+                    BackHandler { showSettings = false }
+                    SettingsScreen(
+                        settings = settings,
+                        userName = userName,
+                        onChange = { st ->
+                            settings = st
+                            SettingsStore.save(context, st)
+                        },
+                        onBack = { showSettings = false },
+                        onEditName = { showProfile = true },
+                        onClearAll = { showClearConfirm = true },
+                        onExport = { shareAll() },
+                        onAbout = { showAbout = true }
+                    )
+                }
             }
         }
-    }
-    if (showSettings) {
-        BackHandler { showSettings = false }
-        SettingsScreen(
-            settings = settings,
-            userName = userName,
-            onChange = { st ->
-                settings = st
-                SettingsStore.save(context, st)
-            },
-            onBack = { showSettings = false },
-            onEditName = { showProfile = true },
-            onClearAll = { showClearConfirm = true },
-            onExport = { shareAll() },
-            onAbout = { showAbout = true }
-        )
-    }
-    }
     }
 }
 
@@ -759,8 +801,16 @@ private fun settingsInstruction(st: AppSettings): String {
     return t
 }
 
-private fun buildExtra(mode: String, projectInstructions: String, st: AppSettings): String {
+private fun buildExtra(
+    mode: String,
+    projectInstructions: String,
+    st: AppSettings,
+    name: String
+): String {
     var t = modeInstruction(mode) + settingsInstruction(st)
+    if (name.isNotBlank()) {
+        t = t + " THE USER'S NAME IS: " + name.trim() + ". Use it naturally, not in every message."
+    }
     if (projectInstructions.isNotBlank()) {
         t = t + " PROJECT INSTRUCTIONS FROM THE USER: " + projectInstructions.trim()
     }
@@ -776,20 +826,21 @@ fun DrawerRow(
     trailing: ImageVector?,
     onClick: () -> Unit
 ) {
+    val P = LocalPal.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(if (selected) DrawerSel else Color.Transparent)
+            .background(if (selected) P.panelSel else Color.Transparent)
             .clickable { onClick() }
             .padding(horizontal = 12.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
         Spacer(modifier = Modifier.width(14.dp))
-        Text(label, color = DrawerText, fontSize = 16.sp, modifier = Modifier.weight(1f))
+        Text(label, color = P.panelText, fontSize = 16.sp, modifier = Modifier.weight(1f))
         if (trailing != null) {
-            Icon(trailing, contentDescription = null, tint = DrawerMuted, modifier = Modifier.size(20.dp))
+            Icon(trailing, contentDescription = null, tint = P.panelMuted, modifier = Modifier.size(20.dp))
         }
     }
 }
@@ -801,18 +852,19 @@ fun DrawerSubRow(
     onClick: () -> Unit,
     trailing: @Composable () -> Unit
 ) {
+    val P = LocalPal.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(if (selected) DrawerSel else Color.Transparent)
+            .background(if (selected) P.panelSel else Color.Transparent)
             .clickable { onClick() }
             .padding(start = 48.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             label,
-            color = DrawerText,
+            color = P.panelText,
             fontSize = 15.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -840,6 +892,7 @@ fun DrawerContent(
     onSettings: () -> Unit,
     onStart: (String) -> Unit
 ) {
+    val P = LocalPal.current
     var searching by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
     var showAll by remember { mutableStateOf(false) }
@@ -873,22 +926,22 @@ fun DrawerContent(
                     onValueChange = { query = it },
                     modifier = Modifier.weight(1f),
                     singleLine = true,
-                    placeholder = { Text("Shakisha ibiganiro", color = DrawerMuted) },
+                    placeholder = { Text("Shakisha ibiganiro", color = P.panelMuted) },
                     shape = RoundedCornerShape(16.dp),
                     colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color.White,
-                        unfocusedContainerColor = Color.White,
+                        focusedContainerColor = P.panelCard,
+                        unfocusedContainerColor = P.panelCard,
                         focusedIndicatorColor = Color.Transparent,
                         unfocusedIndicatorColor = Color.Transparent,
-                        focusedTextColor = DrawerText,
-                        unfocusedTextColor = DrawerText,
-                        cursorColor = DrawerAccent
+                        focusedTextColor = P.panelText,
+                        unfocusedTextColor = P.panelText,
+                        cursorColor = P.accent
                     )
                 )
                 Icon(
                     Icons.Filled.Close,
                     contentDescription = "Funga",
-                    tint = DrawerText,
+                    tint = P.panelText,
                     modifier = Modifier
                         .size(44.dp)
                         .clip(CircleShape)
@@ -903,7 +956,7 @@ fun DrawerContent(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     "Yacunne AI",
-                    color = DrawerText,
+                    color = P.panelText,
                     fontSize = 24.sp,
                     fontWeight = FontWeight.ExtraBold,
                     modifier = Modifier.weight(1f)
@@ -911,7 +964,7 @@ fun DrawerContent(
                 Icon(
                     Icons.Filled.Search,
                     contentDescription = "Shakisha",
-                    tint = DrawerText,
+                    tint = P.panelText,
                     modifier = Modifier
                         .size(44.dp)
                         .clip(CircleShape)
@@ -926,7 +979,7 @@ fun DrawerContent(
                     modifier = Modifier
                         .size(44.dp)
                         .clip(CircleShape)
-                        .background(DrawerAccent)
+                        .background(P.accent)
                         .clickable { onNew() }
                         .padding(11.dp)
                 )
@@ -935,7 +988,7 @@ fun DrawerContent(
         Spacer(modifier = Modifier.height(10.dp))
 
         DrawerRow(
-            Icons.Filled.Home, "Imishinga", DrawerAccent, activeProjectId.isNotEmpty(),
+            Icons.Filled.Home, "Imishinga", P.accent, activeProjectId.isNotEmpty(),
             if (projectsOpen) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown
         ) { projectsOpen = !projectsOpen }
         if (projectsOpen) {
@@ -944,7 +997,7 @@ fun DrawerContent(
                     Icon(
                         Icons.Filled.Edit,
                         contentDescription = "Hindura",
-                        tint = DrawerMuted,
+                        tint = P.panelMuted,
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
@@ -955,7 +1008,7 @@ fun DrawerContent(
             }
             Text(
                 "+ Umushinga mushasha",
-                color = DrawerAccent,
+                color = P.accent,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier
@@ -988,36 +1041,36 @@ fun DrawerContent(
         }
 
         Spacer(modifier = Modifier.height(6.dp))
-        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(DrawerLine))
+        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(P.panelLine))
         Spacer(modifier = Modifier.height(10.dp))
         if (activeProject != null) {
             Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(20.dp))
-                    .background(DrawerSel)
+                    .background(P.panelSel)
                     .clickable { onSelectProject(activeProject.id) }
                     .padding(horizontal = 12.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     "Umushinga: " + activeProject.name,
-                    color = DrawerText,
+                    color = P.panelText,
                     fontSize = 13.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
-                Icon(Icons.Filled.Close, null, tint = DrawerMuted, modifier = Modifier.size(14.dp))
+                Icon(Icons.Filled.Close, null, tint = P.panelMuted, modifier = Modifier.size(14.dp))
             }
             Spacer(modifier = Modifier.height(8.dp))
         }
-        Text("Amateka", color = DrawerMuted, fontSize = 13.sp)
+        Text("Amateka", color = P.panelMuted, fontSize = 13.sp)
         Spacer(modifier = Modifier.height(6.dp))
         if (visible.isEmpty()) {
             Text(
                 if (query.isBlank()) "Nta kiganiro kirabikwa." else "Nta cabonetse.",
-                color = DrawerMuted,
+                color = P.panelMuted,
                 fontSize = 14.sp,
                 fontStyle = FontStyle.Italic
             )
@@ -1032,7 +1085,7 @@ fun DrawerContent(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
-                        .background(if (selected) DrawerSel else Color.Transparent)
+                        .background(if (selected) P.panelSel else Color.Transparent)
                         .clickable { onOpen(c.id) }
                         .padding(start = 12.dp, top = 2.dp, bottom = 2.dp, end = 2.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -1048,7 +1101,7 @@ fun DrawerContent(
                     }
                     Text(
                         c.title,
-                        color = DrawerText,
+                        color = P.panelText,
                         fontSize = 15.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -1058,7 +1111,7 @@ fun DrawerContent(
                         Icon(
                             Icons.Filled.MoreVert,
                             contentDescription = "Ibindi",
-                            tint = DrawerMuted,
+                            tint = P.panelMuted,
                             modifier = Modifier
                                 .size(40.dp)
                                 .clip(CircleShape)
@@ -1118,7 +1171,7 @@ fun DrawerContent(
                 item {
                     Text(
                         if (showAll) "Reba bike" else "Reba vyose",
-                        color = DrawerAccent,
+                        color = P.accent,
                         fontSize = 14.sp,
                         modifier = Modifier
                             .clip(RoundedCornerShape(10.dp))
@@ -1134,7 +1187,7 @@ fun DrawerContent(
                 modifier = Modifier
                     .size(52.dp)
                     .clip(CircleShape)
-                    .background(DrawerAccent)
+                    .background(P.accent)
                     .clickable { onSettings() },
                 contentAlignment = Alignment.Center
             ) {
@@ -1247,7 +1300,7 @@ fun InputBar(
                 .size(44.dp)
                 .alpha(if (!loading && input.isBlank()) 0.6f else 1f)
                 .clip(CircleShape)
-                .background(NeonBlue)
+                .background(P.accent)
                 .clickable { if (loading) onStop() else onSend() },
             contentAlignment = Alignment.Center
         ) {
@@ -1356,7 +1409,12 @@ fun ChatHeader(
 }
 
 @Composable
-fun MessageRow(message: ChatMessage, onCopy: ((String) -> Unit)?, textSize: Int = 16) {
+fun MessageRow(
+    message: ChatMessage,
+    onCopy: ((String) -> Unit)?,
+    onRegenerate: (() -> Unit)? = null,
+    textSize: Int = 16
+) {
     val P = LocalPal.current
     if (message.fromUser) {
         Row(
@@ -1370,16 +1428,29 @@ fun MessageRow(message: ChatMessage, onCopy: ((String) -> Unit)?, textSize: Int 
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
             Bubble(message.text, false, textSize)
             if (onCopy != null) {
-                Text(
-                    "Copy",
-                    color = P.soft,
-                    fontSize = 12.sp,
-                    modifier = Modifier
-                        .padding(top = 2.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable { onCopy(message.text) }
-                        .padding(horizontal = 4.dp, vertical = 4.dp)
-                )
+                Row(modifier = Modifier.padding(top = 2.dp)) {
+                    Text(
+                        "Copy",
+                        color = P.soft,
+                        fontSize = 12.sp,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { onCopy(message.text) }
+                            .padding(horizontal = 4.dp, vertical = 4.dp)
+                    )
+                    if (onRegenerate != null) {
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            "Ongera usubize",
+                            color = P.soft,
+                            fontSize = 12.sp,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { onRegenerate() }
+                                .padding(horizontal = 4.dp, vertical = 4.dp)
+                        )
+                    }
+                }
             }
         }
     }
@@ -1496,9 +1567,10 @@ object SettingsStore {
 
 @Composable
 fun SectionTitle(text: String) {
+    val P = LocalPal.current
     Text(
         text,
-        color = DrawerMuted,
+        color = P.panelMuted,
         fontSize = 13.sp,
         fontWeight = FontWeight.Bold,
         modifier = Modifier.padding(top = 22.dp, bottom = 8.dp, start = 4.dp)
@@ -1507,35 +1579,37 @@ fun SectionTitle(text: String) {
 
 @Composable
 fun SettingRow(title: String, value: String, titleColor: Color, onClick: (() -> Unit)?) {
+    val P = LocalPal.current
     val shape = RoundedCornerShape(14.dp)
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(Color.White)
+            .background(P.panelCard)
             .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
             .padding(horizontal = 16.dp, vertical = 14.dp)
     ) {
         Text(title, color = titleColor, fontSize = 16.sp)
         if (value.isNotEmpty()) {
-            Text(value, color = DrawerMuted, fontSize = 13.sp)
+            Text(value, color = P.panelMuted, fontSize = 13.sp)
         }
     }
 }
 
 @Composable
 fun SettingChip(label: String, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val P = LocalPal.current
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(20.dp))
-            .background(if (selected) DrawerAccent else Color.White)
+            .background(if (selected) P.accent else P.panelCard)
             .clickable { onClick() }
             .padding(vertical = 12.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             label,
-            color = if (selected) Color.White else DrawerText,
+            color = if (selected) Color.White else P.panelText,
             fontSize = 15.sp,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
         )
@@ -1553,6 +1627,7 @@ fun SettingsScreen(
     onExport: () -> Unit,
     onAbout: () -> Unit
 ) {
+    val P = LocalPal.current
     var custom by remember { mutableStateOf(settings.custom) }
     val langs = listOf(
         "auto" to "Ruhuje n'ururimi nanditse",
@@ -1564,10 +1639,10 @@ fun SettingsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(DrawerBg)
+            .background(P.panel)
             .navigationBarsPadding()
     ) {
-        Box(modifier = Modifier.fillMaxWidth().background(LocalPal.current.bg).statusBarsPadding())
+        Box(modifier = Modifier.fillMaxWidth().statusBarsPadding())
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -1575,7 +1650,7 @@ fun SettingsScreen(
             Icon(
                 Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = "Garuka",
-                tint = DrawerText,
+                tint = P.panelText,
                 modifier = Modifier
                     .size(44.dp)
                     .clip(CircleShape)
@@ -1585,7 +1660,7 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.width(8.dp))
             Text(
                 "Igenamiterere",
-                color = DrawerText,
+                color = P.panelText,
                 fontSize = 22.sp,
                 fontWeight = FontWeight.ExtraBold
             )
@@ -1601,25 +1676,25 @@ fun SettingsScreen(
             SettingRow(
                 "Izina ryawe",
                 if (userName.isBlank()) "Nta ryashyizweho. Kanda ugirishyireho." else userName,
-                DrawerText
+                P.panelText
             ) { onEditName() }
             Spacer(modifier = Modifier.height(8.dp))
             SettingRow(
                 "Kwinjira (login)",
                 "Biraza vuba. Bizakwemerera kubika ibiganiro byawe kuri seriveri no kubikoresha kuri telefone zindi.",
-                DrawerMuted,
+                P.panelMuted,
                 null
             )
 
             SectionTitle("Isura")
-            Text("Ibara rya app", color = DrawerText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
+            Text("Ibara rya app", color = P.panelText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 SettingChip("Wirabura", settings.theme == "dark", Modifier.weight(1f)) { onChange(settings.copy(theme = "dark")) }
                 SettingChip("Umweru", settings.theme == "light", Modifier.weight(1f)) { onChange(settings.copy(theme = "light")) }
                 SettingChip("Telefone", settings.theme == "system", Modifier.weight(1f)) { onChange(settings.copy(theme = "system")) }
             }
             Spacer(modifier = Modifier.height(16.dp))
-            Text("Ingano y'inyuguti", color = DrawerText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
+            Text("Ingano y'inyuguti", color = P.panelText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 SettingChip("Nto", settings.fontSize == 0, Modifier.weight(1f)) { onChange(settings.copy(fontSize = 0)) }
                 SettingChip("Hagati", settings.fontSize == 1, Modifier.weight(1f)) { onChange(settings.copy(fontSize = 1)) }
@@ -1628,55 +1703,55 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(10.dp))
             Text(
                 "Ikigeragezo: Amahoro! Iyi ni ingano y'inyuguti wahisemo.",
-                color = DrawerText,
+                color = P.panelText,
                 fontSize = (if (settings.fontSize == 0) 14 else if (settings.fontSize == 2) 18 else 16).sp,
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(14.dp))
-                    .background(Color.White)
+                    .background(P.panelCard)
                     .padding(horizontal = 16.dp, vertical = 14.dp)
             )
 
             SectionTitle("Uko Yacunne isubiza")
-            Text("Uburyo bwo gusubiza", color = DrawerText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
+            Text("Uburyo bwo gusubiza", color = P.panelText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 SettingChip("Ngufi", settings.style == "short", Modifier.weight(1f)) { onChange(settings.copy(style = "short")) }
                 SettingChip("Isanzwe", settings.style == "normal", Modifier.weight(1f)) { onChange(settings.copy(style = "normal")) }
                 SettingChip("Irambuye", settings.style == "long", Modifier.weight(1f)) { onChange(settings.copy(style = "long")) }
             }
             Spacer(modifier = Modifier.height(16.dp))
-            Text("Ururimi rw'ibisubizo", color = DrawerText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
+            Text("Ururimi rw'ibisubizo", color = P.panelText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
             langs.forEach { (key, label) ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 6.dp)
                         .clip(RoundedCornerShape(14.dp))
-                        .background(if (settings.answerLang == key) DrawerSel else Color.White)
+                        .background(if (settings.answerLang == key) P.panelSel else P.panelCard)
                         .clickable { onChange(settings.copy(answerLang = key)) }
                         .padding(horizontal = 16.dp, vertical = 13.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(label, color = DrawerText, fontSize = 16.sp, modifier = Modifier.weight(1f))
+                    Text(label, color = P.panelText, fontSize = 16.sp, modifier = Modifier.weight(1f))
                     if (settings.answerLang == key) {
-                        Icon(Icons.Filled.Check, contentDescription = null, tint = DrawerAccent)
+                        Icon(Icons.Filled.Check, contentDescription = null, tint = P.accent)
                     }
                 }
             }
             Spacer(modifier = Modifier.height(16.dp))
-            Text("Ubwenge bwa Yacunne", color = DrawerText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
+            Text("Ubwenge bwa Yacunne", color = P.panelText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 SettingChip("Vuba", settings.model == "fast", Modifier.weight(1f)) { onChange(settings.copy(model = "fast")) }
                 SettingChip("Bwinshi (Pro)", settings.model == "pro", Modifier.weight(1f)) { onChange(settings.copy(model = "pro")) }
             }
             Text(
                 "Bwinshi busubiza neza, ariko butinda kandi bufise imipaka ku buntu. Iyo bunaniwe, Yacunne isubira ku buryo bwihuta.",
-                color = DrawerMuted,
+                color = P.panelMuted,
                 fontSize = 13.sp,
                 modifier = Modifier.padding(top = 8.dp, start = 4.dp)
             )
             Spacer(modifier = Modifier.height(10.dp))
-            Text("Amabwiriza yanjye (kuri ibiganiro vyose)", color = DrawerText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
+            Text("Amabwiriza yanjye (kuri ibiganiro vyose)", color = P.panelText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
             TextField(
                 value = custom,
                 onValueChange = {
@@ -1686,20 +1761,26 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth(),
                 maxLines = 6,
                 shape = RoundedCornerShape(14.dp),
-                placeholder = { Text("Urugero: Nitwa Yacu, ndi umushoferi wa Uber muri Afurika y'Epfo.", color = DrawerMuted) },
+                placeholder = { Text("Urugero: Nitwa Yacu, ndi umushoferi wa Uber muri Afurika y'Epfo.", color = P.panelMuted) },
                 colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color.White,
-                    unfocusedContainerColor = Color.White,
+                    focusedContainerColor = P.panelCard,
+                    unfocusedContainerColor = P.panelCard,
                     focusedIndicatorColor = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent,
-                    focusedTextColor = DrawerText,
-                    unfocusedTextColor = DrawerText,
-                    cursorColor = DrawerAccent
+                    focusedTextColor = P.panelText,
+                    unfocusedTextColor = P.panelText,
+                    cursorColor = P.accent
                 )
+            )
+            Text(
+                "Ibi byoherezwa kuri Google Gemini hamwe n'ubutumwa bwawe. Ntushiremwo amakuru y'ibanga.",
+                color = P.panelMuted,
+                fontSize = 13.sp,
+                modifier = Modifier.padding(top = 8.dp, start = 4.dp)
             )
 
             SectionTitle("Ibiganiro")
-            SettingRow("Sohora ibiganiro vyose", "Sangiza ibiganiro vyawe vyose nk'inyandiko (WhatsApp, Email...).", DrawerText) { onExport() }
+            SettingRow("Sohora ibiganiro vyose", "Sangiza ibiganiro vyawe vyose nk'inyandiko (WhatsApp, Email...).", P.panelText) { onExport() }
             Spacer(modifier = Modifier.height(8.dp))
             SettingRow("Siba amateka yose", "Ibiganiro vyose bizosibwa kuri iyi telefone.", Color(0xFFDC2626)) { onClearAll() }
 
@@ -1707,12 +1788,12 @@ fun SettingsScreen(
             SettingRow(
                 "Google Calendar, Gmail, Drive, WhatsApp",
                 "Biraza vuba. Bisaba seriveri n'uruhushya rw'izo app, nta bwo bishoboka muri iyi verisiyo.",
-                DrawerMuted,
+                P.panelMuted,
                 null
             )
 
             SectionTitle("Ibijyanye na Yacunne")
-            SettingRow("Yacunne AI", "Verisiyo 1.0. Soma amakuru ya app.", DrawerText) { onAbout() }
+            SettingRow("Yacunne AI", "Verisiyo 1.0. Soma amakuru ya app.", P.panelText) { onAbout() }
         }
     }
 }
