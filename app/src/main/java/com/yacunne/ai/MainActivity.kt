@@ -96,9 +96,9 @@ private val NeonBlue = Color(0xFF3B82F6)
 private val DeepNavy = Color(0xFF0B0F1A)
 private val MidNavy = Color(0xFF0B1140)
 private val DeepViolet = Color(0xFF1A0B3B)
-private val BubbleDark = Color(0xFF141A2B)
-private val BubbleBorder = Color(0xFF2A3350)
-private val SoftText = Color(0xFF9AA3C0)
+private val BubbleDark = Color(0xFF1C2540)
+private val BubbleBorder = Color(0xFF3D4A75)
+private val SoftText = Color(0xFFBCC4E0)
 private val Gold = Color(0xFFF5B63D)
 
 private val NeonColors = darkColorScheme(
@@ -285,7 +285,7 @@ fun ChatScreen() {
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
-            ModalDrawerSheet(drawerContainerColor = DeepNavy) {
+            ModalDrawerSheet(drawerContainerColor = Color(0xFF131C33)) {
                 DrawerContent(
                     conversations = conversations,
                     currentId = currentId,
@@ -449,19 +449,19 @@ fun StartTile(
     modifier: Modifier,
     onClick: () -> Unit
 ) {
-    val shape = RoundedCornerShape(16.dp)
-    Row(
+    val shape = RoundedCornerShape(14.dp)
+    Column(
         modifier = modifier
             .clip(shape)
             .background(BubbleDark)
-            .border(0.5.dp, BubbleBorder, shape)
+            .border(1.dp, BubbleBorder, shape)
             .clickable { onClick() }
-            .padding(horizontal = 12.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(vertical = 10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(label, color = Color(0xFFF1F2FF), fontSize = 15.sp, maxLines = 1)
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(label, color = Color.White, fontSize = 12.sp, maxLines = 1)
     }
 }
 
@@ -494,7 +494,7 @@ fun DrawerContent(
                     onValueChange = { query = it },
                     modifier = Modifier.weight(1f),
                     singleLine = true,
-                    placeholder = { Text("Shakisha ibiganiro", color = Color(0xFF7A839F)) },
+                    placeholder = { Text("Shakisha ibiganiro", color = Color(0xFFA3ABC8)) },
                     shape = RoundedCornerShape(16.dp),
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = BubbleDark,
@@ -539,26 +539,36 @@ fun DrawerContent(
                         .clickable { searching = true }
                         .padding(10.dp)
                 )
+                Spacer(modifier = Modifier.width(6.dp))
+                Icon(
+                    Icons.Filled.Edit,
+                    contentDescription = "Ikiganiro gishya",
+                    tint = Color.White,
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(NeonBlue)
+                        .clickable { onNew() }
+                        .padding(11.dp)
+                )
             }
         }
         Spacer(modifier = Modifier.height(14.dp))
-        Row(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             StartTile(
-                "Kwiga", Icons.Filled.Star, Color(0xFF60A5FA), Modifier.weight(1f)
+                "Kwiga", Icons.Filled.Star, Color(0xFF7DB4FF), Modifier.weight(1f)
             ) { onStart("Ndashaka kwiga. Mbaza ikintu nshaka kwiga hanyuma unyigishe buhoro buhoro.") }
-            Spacer(modifier = Modifier.width(10.dp))
             StartTile(
-                "Kwandika", Icons.Filled.Create, Color(0xFF34D399), Modifier.weight(1f)
+                "Kwandika", Icons.Filled.Create, Color(0xFF4ADE9F), Modifier.weight(1f)
             ) { onStart("Ndashaka ko umfasha kwandika ubutumwa. Mbaza uwo ndandikira n'ico nshaka kuvuga.") }
-        }
-        Spacer(modifier = Modifier.height(10.dp))
-        Row(modifier = Modifier.fillMaxWidth()) {
             StartTile(
-                "Gutegura", Icons.Filled.Build, Color(0xFFFBBF24), Modifier.weight(1f)
+                "Gutegura", Icons.Filled.Build, Color(0xFFFFCB47), Modifier.weight(1f)
             ) { onStart("Ndashaka igitekerezo c'umushinga. Mbaza ibibazo bike hanyuma umpe ibitekerezo.") }
-            Spacer(modifier = Modifier.width(10.dp))
             StartTile(
-                "Guhindura", Icons.Filled.Refresh, Color(0xFFF472B6), Modifier.weight(1f)
+                "Guhindura", Icons.Filled.Refresh, Color(0xFFFF8FC4), Modifier.weight(1f)
             ) { onStart("Ndashaka ko umfasha guhindura amagambo mu zindi ndimi. Mbaza ururimi n'amagambo.") }
         }
         Spacer(modifier = Modifier.height(18.dp))
@@ -650,18 +660,17 @@ fun DrawerContent(
                     )
                 }
             }
-            Spacer(modifier = Modifier.weight(1f))
-            Row(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(NeonBlue)
-                    .clickable { onNew() }
-                    .padding(horizontal = 18.dp, vertical = 13.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(Icons.Filled.Add, contentDescription = null, tint = Color.White)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Ikiganiro gishya", color = Color.White, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f).clickable { onProfile() }) {
+                Text(
+                    if (userName.isBlank()) "Ongeraho izina ryawe" else userName,
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text("Konti yawe", color = SoftText, fontSize = 13.sp)
             }
         }
     }
@@ -745,7 +754,7 @@ fun InputBar(
             placeholder = {
                 Text(
                     "Andika hano...",
-                    color = Color(0xFF7A839F)
+                    color = Color(0xFFA3ABC8)
                 )
             },
             colors = TextFieldDefaults.colors(
@@ -761,7 +770,7 @@ fun InputBar(
         Box(
             modifier = Modifier
                 .size(44.dp)
-                .alpha(if (!loading && input.isBlank()) 0.4f else 1f)
+                .alpha(if (!loading && input.isBlank()) 0.6f else 1f)
                 .clip(CircleShape)
                 .background(NeonBlue)
                 .clickable { if (loading) onStop() else onSend() },
