@@ -136,6 +136,9 @@ fun ChatScreen() {
     var job by remember { mutableStateOf<Job?>(null) }
     var showAbout by remember { mutableStateOf(false) }
     var showClearConfirm by remember { mutableStateOf(false) }
+    var errorMsg by remember { mutableStateOf<String?>(null) }
+    var runId by remember { mutableStateOf(0) }
+    var runningConv by remember { mutableStateOf("") }
 
     val messages: List<ChatMessage> =
         conversations.firstOrNull { it.id == currentId }?.messages ?: emptyList()
@@ -155,7 +158,17 @@ fun ChatScreen() {
     }
 
     fun stopGenerating() {
+        runId++
         job?.cancel()
+        job = null
+        val partial = streaming
+        if (!partial.isNullOrEmpty() && conversations.any { it.id == runningConv }) {
+            addMessage(runningConv, ChatMessage(partial, false))
+            persist()
+        }
+        streaming = null
+        loading = false
+        errorMsg = null
     }
 
     fun newChat() {
@@ -181,7 +194,10 @@ fun ChatScreen() {
     }
 
     fun shareChat() {
-        if (messages.isEmpty()) return
+        if (messages.isEmpty()) {
+            android.widget.Toast.makeText(context, "Nta kiganiro kiriho", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
         val body = messages.joinToString("\n\n") {
             (if (it.fromUser) "Wowe: " else "Yacunne AI: ") + it.text
         }
@@ -192,6 +208,38 @@ fun ChatScreen() {
         context.startActivity(Intent.createChooser(intent, "Sangiza ikiganiro"))
     }
 
+    fun ask(convId: String) {
+        errorMsg = null
+        loading = true
+        runningConv = convId
+        runId++
+        val myRun = runId
+        val history = conversations.first { it.id == convId }.messages
+        job = scope.launch {
+            val full = askGeminiWithFallback(history)
+            if (myRun != runId) return@launch
+            if (isErrorReply(full)) {
+                errorMsg = full
+                loading = false
+                job = null
+                return@launch
+            }
+            var i = 0
+            while (i < full.length) {
+                i = minOf(full.length, i + 3)
+                streaming = full.substring(0, i)
+                delay(14)
+            }
+            if (myRun == runId) {
+                addMessage(convId, ChatMessage(full, false))
+                streaming = null
+                loading = false
+                job = null
+                persist()
+            }
+        }
+    }
+
     fun sendText(raw: String) {
         val text = raw.trim()
         if (text.isEmpty() || loading) return
@@ -199,29 +247,7 @@ fun ChatScreen() {
         addMessage(convId, ChatMessage(text, true))
         persist()
         input = ""
-        loading = true
-        val history = conversations.first { it.id == convId }.messages
-        job = scope.launch {
-            var shown = ""
-            try {
-                val full = askGeminiWithFallback(history)
-                var i = 0
-                while (i < full.length) {
-                    i = minOf(full.length, i + 3)
-                    shown = full.substring(0, i)
-                    streaming = shown
-                    delay(14)
-                }
-            } finally {
-                if (shown.isNotEmpty()) {
-                    addMessage(convId, ChatMessage(shown, false))
-                }
-                streaming = null
-                loading = false
-                job = null
-                persist()
-            }
-        }
+        ask(convId)
     }
 
     LaunchedEffect(currentId, messages.size, streaming?.length) {
@@ -280,7 +306,10 @@ fun ChatScreen() {
                         items(messages) { message ->
                             MessageRow(
                                 message = message,
-                                onCopy = { clipboard.setText(AnnotatedString(it)) }
+                                onCopy = {
+                                    clipboard.setText(AnnotatedString(it))
+                                    android.widget.Toast.makeText(context, "Vyakoporowe", android.widget.Toast.LENGTH_SHORT).show()
+                                }
                             )
                         }
                         val live = streaming
@@ -302,6 +331,14 @@ fun ChatScreen() {
                     fontSize = 13.sp,
                     fontStyle = FontStyle.Italic,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
+                )
+            }
+            val err = errorMsg
+            if (err != null && !loading) {
+                ErrorBanner(
+                    text = err,
+                    onRetry = { ask(currentId) },
+                    onClose = { errorMsg = null }
                 )
             }
             InputBar(
@@ -676,6 +713,34 @@ fun Bubble(text: String, fromUser: Boolean, modifier: Modifier = Modifier) {
                     lineHeight = 24.sp
                 )
             }
+        }
+    }
+}
+
+private fun isErrorReply(text: String): Boolean {
+    return text.startsWith("Ikosa ") ||
+        text.startsWith("Internet ntikora") ||
+        text.startsWith("Ntibishoboye") ||
+        text.startsWith("Limit ya Gemini") ||
+        text.startsWith("Gemini ntiyashoboye")
+}
+
+@Composable
+fun ErrorBanner(text: String, onRetry: () -> Unit, onClose: () -> Unit) {
+    val shape = RoundedCornerShape(16.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .clip(shape)
+            .background(Color(0xFF2A1620))
+            .border(0.5.dp, Color(0xFF7F2D45), shape)
+            .padding(12.dp)
+    ) {
+        Text(text, color = Color(0xFFFFB4C2), fontSize = 14.sp, maxLines = 4)
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            TextButton(onClick = onClose) { Text("Funga", color = SoftText) }
+            TextButton(onClick = onRetry) { Text("Ongera ugerageze", color = NeonBlue) }
         }
     }
 }
