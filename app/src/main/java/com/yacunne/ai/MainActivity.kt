@@ -86,16 +86,16 @@ data class ChatMessage(val text: String, val fromUser: Boolean)
 
 private val NeonPurple = Color(0xFF8B5CF6)
 private val NeonBlue = Color(0xFF3B82F6)
-private val DeepNavy = Color(0xFF050A1F)
+private val DeepNavy = Color(0xFF0B0F1A)
 private val MidNavy = Color(0xFF0B1140)
 private val DeepViolet = Color(0xFF1A0B3B)
-private val BubbleDark = Color(0xFF0F1535)
-private val BubbleBorder = Color(0xFF3F4BB8)
-private val SoftText = Color(0xFFB8BEE8)
+private val BubbleDark = Color(0xFF141A2B)
+private val BubbleBorder = Color(0xFF2A3350)
+private val SoftText = Color(0xFF9AA3C0)
 private val Gold = Color(0xFFF5B63D)
 
 private val NeonColors = darkColorScheme(
-    primary = NeonPurple,
+    primary = NeonBlue,
     onPrimary = Color.White,
     background = DeepNavy,
     surface = DeepNavy,
@@ -254,27 +254,7 @@ fun ChatScreen() {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Brush.verticalGradient(listOf(DeepNavy, MidNavy, DeepViolet)))
-                .drawBehind {
-                    drawCircle(
-                        brush = Brush.radialGradient(
-                            colors = listOf(NeonBlue.copy(alpha = 0.35f), Color.Transparent),
-                            center = Offset(0f, size.height * 0.12f),
-                            radius = size.width * 0.9f
-                        ),
-                        radius = size.width * 0.9f,
-                        center = Offset(0f, size.height * 0.12f)
-                    )
-                    drawCircle(
-                        brush = Brush.radialGradient(
-                            colors = listOf(NeonPurple.copy(alpha = 0.30f), Color.Transparent),
-                            center = Offset(size.width, size.height * 0.85f),
-                            radius = size.width * 0.9f
-                        ),
-                        radius = size.width * 0.9f,
-                        center = Offset(size.width, size.height * 0.85f)
-                    )
-                }
+                .background(DeepNavy)
                 .statusBarsPadding()
                 .navigationBarsPadding()
                 .imePadding()
@@ -371,8 +351,6 @@ fun DrawerContent(
 ) {
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            LogoY(36)
-            Spacer(modifier = Modifier.width(10.dp))
             Text(
                 "Yacunne AI",
                 color = Color.White,
@@ -385,7 +363,7 @@ fun DrawerContent(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(16.dp))
-                .background(Brush.linearGradient(listOf(NeonPurple, NeonBlue)))
+                .background(NeonBlue)
                 .clickable { onNew() }
                 .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -413,8 +391,8 @@ fun DrawerContent(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(shape)
-                        .background(if (selected) Color(0xFF1A2154) else Color.Transparent)
-                        .border(1.dp, if (selected) NeonPurple else Color.Transparent, shape)
+                        .background(if (selected) Color(0xFF1B2440) else Color.Transparent)
+                        .border(1.dp, if (selected) NeonBlue else Color.Transparent, shape)
                         .clickable { onOpen(c.id) }
                         .padding(start = 14.dp, top = 4.dp, bottom = 4.dp, end = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -457,15 +435,24 @@ fun EmptyState(onPick: (String) -> Unit) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        LogoY(72)
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            "Amahoro! \uD83D\uDC4B",
-            color = Color.White,
-            fontSize = 26.sp,
-            fontWeight = FontWeight.ExtraBold
-        )
-        Text("Nagufasha iki uyu munsi?", color = SoftText, fontSize = 16.sp)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "Yacunne ",
+                color = Color.White,
+                fontSize = 40.sp,
+                fontWeight = FontWeight.ExtraBold
+            )
+            Text(
+                "AI",
+                color = NeonBlue,
+                fontSize = 40.sp,
+                fontWeight = FontWeight.ExtraBold
+            )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+        val greeting = if (hour < 12) "Mwaramutse!" else "Mwiriwe!"
+        Text(greeting + " Nagufasha iki uyu munsi?", color = SoftText, fontSize = 16.sp)
         Spacer(modifier = Modifier.height(24.dp))
         suggestions.forEach { s ->
             Box(
@@ -474,7 +461,7 @@ fun EmptyState(onPick: (String) -> Unit) {
                     .padding(vertical = 4.dp)
                     .clip(shape)
                     .background(BubbleDark)
-                    .border(1.dp, BubbleBorder, shape)
+                    .border(0.5.dp, BubbleBorder, shape)
                     .clickable { onPick(s) }
                     .padding(horizontal = 16.dp, vertical = 14.dp)
             ) {
@@ -498,21 +485,11 @@ fun InputBar(
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 8.dp)
             .clip(barShape)
-            .background(Color(0xFF0D1233))
-            .border(2.dp, Brush.horizontalGradient(listOf(NeonBlue, NeonPurple)), barShape)
-            .padding(start = 6.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+            .background(BubbleDark)
+            .border(1.dp, BubbleBorder, barShape)
+            .padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier = Modifier
-                .size(44.dp)
-                .clip(CircleShape)
-                .background(Color(0xFF1A2154))
-                .clickable { },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(Icons.Filled.Add, contentDescription = "Ongeraho", tint = Color.White)
-        }
         TextField(
             value = input,
             onValueChange = onInputChange,
@@ -521,8 +498,7 @@ fun InputBar(
             placeholder = {
                 Text(
                     "Andika hano...",
-                    color = Color(0xFF8E94C9),
-                    fontStyle = FontStyle.Italic
+                    color = Color(0xFF7A839F)
                 )
             },
             colors = TextFieldDefaults.colors(
@@ -532,15 +508,15 @@ fun InputBar(
                 unfocusedIndicatorColor = Color.Transparent,
                 focusedTextColor = Color.White,
                 unfocusedTextColor = Color.White,
-                cursorColor = NeonPurple
+                cursorColor = NeonBlue
             )
         )
         Box(
             modifier = Modifier
-                .size(48.dp)
-                .alpha(if (!loading && input.isBlank()) 0.5f else 1f)
+                .size(44.dp)
+                .alpha(if (!loading && input.isBlank()) 0.4f else 1f)
                 .clip(CircleShape)
-                .background(Brush.linearGradient(listOf(NeonPurple, NeonBlue)))
+                .background(NeonBlue)
                 .clickable { if (loading) onStop() else onSend() },
             contentAlignment = Alignment.Center
         ) {
@@ -558,25 +534,6 @@ fun InputBar(
                 )
             }
         }
-    }
-}
-
-@Composable
-fun LogoY(size: Int) {
-    Box(
-        modifier = Modifier
-            .size(size.dp)
-            .clip(CircleShape)
-            .background(Brush.linearGradient(listOf(NeonBlue, NeonPurple)))
-            .border(1.5.dp, Color(0xFF6366F1), CircleShape),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            "Y",
-            color = Color.White,
-            fontWeight = FontWeight.ExtraBold,
-            fontSize = (size * 0.5f).sp
-        )
     }
 }
 
@@ -630,7 +587,7 @@ fun ChatHeader(
                 DropdownMenu(
                     expanded = menuOpen,
                     onDismissRequest = { menuOpen = false },
-                    modifier = Modifier.background(Color(0xFF0D1233))
+                    modifier = Modifier.background(BubbleDark)
                 ) {
                     DropdownMenuItem(
                         text = { Text("Sangiza ikiganiro", color = Color.White) },
@@ -663,32 +620,6 @@ fun ChatHeader(
                 }
             }
         }
-        Spacer(modifier = Modifier.height(8.dp))
-        Box(
-            modifier = Modifier
-                .align(Alignment.CenterHorizontally)
-                .fillMaxWidth(0.6f)
-                .height(2.dp)
-                .background(
-                    Brush.horizontalGradient(
-                        listOf(Color.Transparent, NeonPurple, Color.Transparent)
-                    )
-                )
-        )
-    }
-}
-
-@Composable
-fun UserAvatar() {
-    Box(
-        modifier = Modifier
-            .size(38.dp)
-            .clip(CircleShape)
-            .background(Brush.linearGradient(listOf(Color(0xFF7C3AED), Color(0xFF4C1D95))))
-            .border(1.5.dp, Color(0xFF6366F1), CircleShape),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(Icons.Filled.Person, contentDescription = null, tint = Color.White)
     }
 }
 
@@ -701,31 +632,21 @@ fun MessageRow(message: ChatMessage, onCopy: ((String) -> Unit)?) {
             verticalAlignment = Alignment.Top
         ) {
             Bubble(message.text, true, Modifier.weight(1f, fill = false))
-            Spacer(modifier = Modifier.width(8.dp))
-            UserAvatar()
         }
     } else {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Start,
-            verticalAlignment = Alignment.Top
-        ) {
-            LogoY(38)
-            Spacer(modifier = Modifier.width(8.dp))
-            Column(modifier = Modifier.weight(1f, fill = false)) {
-                Bubble(message.text, false)
-                if (onCopy != null) {
-                    Text(
-                        "Copy",
-                        color = SoftText,
-                        fontSize = 12.sp,
-                        modifier = Modifier
-                            .padding(top = 4.dp, start = 6.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { onCopy(message.text) }
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
-                }
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
+            Bubble(message.text, false)
+            if (onCopy != null) {
+                Text(
+                    "Copy",
+                    color = SoftText,
+                    fontSize = 12.sp,
+                    modifier = Modifier
+                        .padding(top = 2.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onCopy(message.text) }
+                        .padding(horizontal = 4.dp, vertical = 4.dp)
+                )
             }
         }
     }
@@ -733,22 +654,28 @@ fun MessageRow(message: ChatMessage, onCopy: ((String) -> Unit)?) {
 
 @Composable
 fun Bubble(text: String, fromUser: Boolean, modifier: Modifier = Modifier) {
-    val shape = RoundedCornerShape(20.dp)
-    val fill = if (fromUser) {
-        Brush.linearGradient(listOf(Color(0xFF7C3AED), Color(0xFF5B21B6)))
+    if (fromUser) {
+        val shape = RoundedCornerShape(20.dp)
+        Box(
+            modifier = modifier
+                .clip(shape)
+                .background(Color(0xFF1E3A8A))
+                .padding(horizontal = 14.dp, vertical = 10.dp)
+        ) {
+            SelectionContainer {
+                Text(text, color = Color(0xFFF1F2FF), fontSize = 16.sp)
+            }
+        }
     } else {
-        Brush.linearGradient(listOf(BubbleDark, BubbleDark))
-    }
-    val edge = if (fromUser) Color(0xFFA78BFA) else BubbleBorder
-    Box(
-        modifier = modifier
-            .clip(shape)
-            .background(fill)
-            .border(1.5.dp, edge, shape)
-            .padding(horizontal = 14.dp, vertical = 10.dp)
-    ) {
-        SelectionContainer {
-            Text(text, color = Color(0xFFF1F2FF), fontSize = 16.sp)
+        Box(modifier = modifier) {
+            SelectionContainer {
+                Text(
+                    text,
+                    color = Color(0xFFE8EAF6),
+                    fontSize = 16.sp,
+                    lineHeight = 24.sp
+                )
+            }
         }
     }
 }
