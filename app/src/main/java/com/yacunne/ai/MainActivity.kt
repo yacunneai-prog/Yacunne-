@@ -11,6 +11,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -70,6 +71,8 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -116,6 +119,44 @@ private val DrawerMuted = Color(0xFF6B6B73)
 private val DrawerLine = Color(0xFFDAD8CF)
 private val DrawerSel = Color(0xFFE6E4DB)
 private val DrawerAccent = Color(0xFF2563EB)
+
+private class Pal(
+    val bg: Color,
+    val card: Color,
+    val border: Color,
+    val soft: Color,
+    val text: Color,
+    val userBubble: Color,
+    val userText: Color,
+    val placeholder: Color,
+    val accent: Color
+)
+
+private val DarkPal = Pal(
+    bg = Color(0xFF0B0F1A),
+    card = Color(0xFF1C2540),
+    border = Color(0xFF3D4A75),
+    soft = Color(0xFFBCC4E0),
+    text = Color(0xFFF1F2FF),
+    userBubble = Color(0xFF1E3A8A),
+    userText = Color(0xFFF1F2FF),
+    placeholder = Color(0xFFA3ABC8),
+    accent = Color(0xFF3B82F6)
+)
+
+private val LightPal = Pal(
+    bg = Color(0xFFFAF9F5),
+    card = Color(0xFFFFFFFF),
+    border = Color(0xFFD9D6CC),
+    soft = Color(0xFF5F6272),
+    text = Color(0xFF1B1B1F),
+    userBubble = Color(0xFFDCE7FF),
+    userText = Color(0xFF14213D),
+    placeholder = Color(0xFF8A8D99),
+    accent = Color(0xFF2563EB)
+)
+
+private val LocalPal = compositionLocalOf { DarkPal }
 
 private val NeonColors = darkColorScheme(
     primary = NeonBlue,
@@ -176,6 +217,24 @@ fun ChatScreen() {
         0 -> 14
         2 -> 18
         else -> 16
+    }
+    val systemDark = isSystemInDarkTheme()
+    val dark = when (settings.theme) {
+        "light" -> false
+        "system" -> systemDark
+        else -> true
+    }
+    val pal = if (dark) DarkPal else LightPal
+    LaunchedEffect(dark) {
+        val bar = if (dark) {
+            SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+        } else {
+            SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
+        }
+        (context as? ComponentActivity)?.enableEdgeToEdge(
+            statusBarStyle = bar,
+            navigationBarStyle = bar
+        )
     }
     var runId by remember { mutableStateOf(0) }
     var runningConv by remember { mutableStateOf("") }
@@ -279,12 +338,30 @@ fun ChatScreen() {
         context.startActivity(Intent.createChooser(intent, "Sangiza ikiganiro"))
     }
 
+    fun shareAll() {
+        if (conversations.isEmpty()) {
+            android.widget.Toast.makeText(context, "Nta kiganiro kiriho", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        val body = conversations.joinToString("\n\n-----\n\n") { c ->
+            c.title + "\n\n" + c.messages.joinToString("\n\n") {
+                (if (it.fromUser) "Wowe: " else "Yacunne AI: ") + it.text
+            }
+        }
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, body)
+        }
+        context.startActivity(Intent.createChooser(intent, "Sohora ibiganiro"))
+    }
+
     fun ask(convId: String) {
         errorMsg = null
         loading = true
         runningConv = convId
         runId++
         val myRun = runId
+        setPreferredModel(settings.model)
         val conv = conversations.first { it.id == convId }
         val history = conv.messages
         val extra = buildExtra(
@@ -350,6 +427,7 @@ fun ChatScreen() {
         }
     }
 
+    CompositionLocalProvider(LocalPal provides pal) {
     Box(modifier = Modifier.fillMaxSize()) {
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -401,7 +479,7 @@ fun ChatScreen() {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(DeepNavy)
+                .background(pal.bg)
                 .statusBarsPadding()
                 .navigationBarsPadding()
                 .imePadding()
@@ -450,7 +528,7 @@ fun ChatScreen() {
             if (loading && streaming == null) {
                 Text(
                     "Irimo gutekereza...",
-                    color = SoftText,
+                    color = pal.soft,
                     fontSize = 13.sp,
                     fontStyle = FontStyle.Italic,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
@@ -627,8 +705,10 @@ fun ChatScreen() {
             onBack = { showSettings = false },
             onEditName = { showProfile = true },
             onClearAll = { showClearConfirm = true },
+            onExport = { shareAll() },
             onAbout = { showAbout = true }
         )
+    }
     }
     }
 }
@@ -1078,6 +1158,7 @@ fun EmptyState(userName: String, onPick: (String) -> Unit) {
         "Ndashaka kwiga Icongereza"
     )
     val shape = RoundedCornerShape(18.dp)
+    val P = LocalPal.current
     Column(
         modifier = Modifier.fillMaxSize().padding(24.dp),
         verticalArrangement = Arrangement.Center,
@@ -1086,13 +1167,13 @@ fun EmptyState(userName: String, onPick: (String) -> Unit) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 "Yacunne ",
-                color = Color.White,
+                color = P.text,
                 fontSize = 40.sp,
                 fontWeight = FontWeight.ExtraBold
             )
             Text(
                 "AI",
-                color = NeonBlue,
+                color = P.accent,
                 fontSize = 40.sp,
                 fontWeight = FontWeight.ExtraBold
             )
@@ -1101,7 +1182,7 @@ fun EmptyState(userName: String, onPick: (String) -> Unit) {
         val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
         val hello = if (hour < 12) "Mwaramutse" else "Mwiriwe"
         val greeting = if (userName.isBlank()) hello + "!" else hello + ", " + userName.trim() + "!"
-        Text(greeting + " Nagufasha iki uyu munsi?", color = SoftText, fontSize = 16.sp)
+        Text(greeting + " Nagufasha iki uyu munsi?", color = P.soft, fontSize = 16.sp)
         Spacer(modifier = Modifier.height(24.dp))
         suggestions.forEach { s ->
             Box(
@@ -1109,12 +1190,12 @@ fun EmptyState(userName: String, onPick: (String) -> Unit) {
                     .fillMaxWidth()
                     .padding(vertical = 4.dp)
                     .clip(shape)
-                    .background(BubbleDark)
-                    .border(0.5.dp, BubbleBorder, shape)
+                    .background(P.card)
+                    .border(0.5.dp, P.border, shape)
                     .clickable { onPick(s) }
                     .padding(horizontal = 16.dp, vertical = 14.dp)
             ) {
-                Text(s, color = Color(0xFFF1F2FF), fontSize = 15.sp)
+                Text(s, color = P.text, fontSize = 15.sp)
             }
         }
     }
@@ -1129,13 +1210,14 @@ fun InputBar(
     onStop: () -> Unit
 ) {
     val barShape = RoundedCornerShape(32.dp)
+    val P = LocalPal.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 8.dp)
             .clip(barShape)
-            .background(BubbleDark)
-            .border(1.dp, BubbleBorder, barShape)
+            .background(P.card)
+            .border(1.dp, P.border, barShape)
             .padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -1147,7 +1229,7 @@ fun InputBar(
             placeholder = {
                 Text(
                     "Andika hano...",
-                    color = Color(0xFFA3ABC8)
+                    color = P.placeholder
                 )
             },
             colors = TextFieldDefaults.colors(
@@ -1155,9 +1237,9 @@ fun InputBar(
                 unfocusedContainerColor = Color.Transparent,
                 focusedIndicatorColor = Color.Transparent,
                 unfocusedIndicatorColor = Color.Transparent,
-                focusedTextColor = Color.White,
-                unfocusedTextColor = Color.White,
-                cursorColor = NeonBlue
+                focusedTextColor = P.text,
+                unfocusedTextColor = P.text,
+                cursorColor = P.accent
             )
         )
         Box(
@@ -1196,6 +1278,7 @@ fun ChatHeader(
     onAbout: () -> Unit
 ) {
     var menuOpen by remember { mutableStateOf(false) }
+    val P = LocalPal.current
     Column(modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 8.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
@@ -1204,7 +1287,7 @@ fun ChatHeader(
             Icon(
                 Icons.Filled.Menu,
                 contentDescription = "Amateka",
-                tint = Color.White,
+                tint = P.text,
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
@@ -1215,7 +1298,7 @@ fun ChatHeader(
             Icon(
                 Icons.Filled.Edit,
                 contentDescription = "Ikiganiro gishya",
-                tint = Color.White,
+                tint = P.text,
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
@@ -1226,7 +1309,7 @@ fun ChatHeader(
                 Icon(
                     Icons.Filled.MoreVert,
                     contentDescription = "Igenamiterere",
-                    tint = Color.White,
+                    tint = P.text,
                     modifier = Modifier
                         .size(36.dp)
                         .clip(CircleShape)
@@ -1236,31 +1319,31 @@ fun ChatHeader(
                 DropdownMenu(
                     expanded = menuOpen,
                     onDismissRequest = { menuOpen = false },
-                    modifier = Modifier.background(BubbleDark)
+                    modifier = Modifier.background(P.card)
                 ) {
                     DropdownMenuItem(
-                        text = { Text("Sangiza ikiganiro", color = Color.White) },
+                        text = { Text("Sangiza ikiganiro", color = P.text) },
                         onClick = {
                             menuOpen = false
                             onShare()
                         }
                     )
                     DropdownMenuItem(
-                        text = { Text("Siba ikiganiro", color = Color.White) },
+                        text = { Text("Siba ikiganiro", color = P.text) },
                         onClick = {
                             menuOpen = false
                             onDeleteChat()
                         }
                     )
                     DropdownMenuItem(
-                        text = { Text("Siba amateka yose", color = Color.White) },
+                        text = { Text("Siba amateka yose", color = P.text) },
                         onClick = {
                             menuOpen = false
                             onClearAll()
                         }
                     )
                     DropdownMenuItem(
-                        text = { Text("Ibijyanye na app", color = Color.White) },
+                        text = { Text("Ibijyanye na app", color = P.text) },
                         onClick = {
                             menuOpen = false
                             onAbout()
@@ -1274,6 +1357,7 @@ fun ChatHeader(
 
 @Composable
 fun MessageRow(message: ChatMessage, onCopy: ((String) -> Unit)?, textSize: Int = 16) {
+    val P = LocalPal.current
     if (message.fromUser) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1288,7 +1372,7 @@ fun MessageRow(message: ChatMessage, onCopy: ((String) -> Unit)?, textSize: Int 
             if (onCopy != null) {
                 Text(
                     "Copy",
-                    color = SoftText,
+                    color = P.soft,
                     fontSize = 12.sp,
                     modifier = Modifier
                         .padding(top = 2.dp)
@@ -1303,16 +1387,17 @@ fun MessageRow(message: ChatMessage, onCopy: ((String) -> Unit)?, textSize: Int 
 
 @Composable
 fun Bubble(text: String, fromUser: Boolean, textSize: Int = 16, modifier: Modifier = Modifier) {
+    val P = LocalPal.current
     if (fromUser) {
         val shape = RoundedCornerShape(20.dp)
         Box(
             modifier = modifier
                 .clip(shape)
-                .background(Color(0xFF1E3A8A))
+                .background(P.userBubble)
                 .padding(horizontal = 14.dp, vertical = 10.dp)
         ) {
             SelectionContainer {
-                Text(text, color = Color(0xFFF1F2FF), fontSize = textSize.sp)
+                Text(text, color = P.userText, fontSize = textSize.sp)
             }
         }
     } else {
@@ -1320,7 +1405,7 @@ fun Bubble(text: String, fromUser: Boolean, textSize: Int = 16, modifier: Modifi
             SelectionContainer {
                 Text(
                     text,
-                    color = Color(0xFFE8EAF6),
+                    color = P.text,
                     fontSize = textSize.sp,
                     lineHeight = (textSize * 3 / 2).sp
                 )
@@ -1376,7 +1461,9 @@ data class AppSettings(
     val fontSize: Int = 1,
     val answerLang: String = "auto",
     val style: String = "normal",
-    val custom: String = ""
+    val custom: String = "",
+    val theme: String = "dark",
+    val model: String = "fast"
 )
 
 object SettingsStore {
@@ -1388,7 +1475,9 @@ object SettingsStore {
             p.getInt("fontSize", 1),
             p.getString("answerLang", "auto") ?: "auto",
             p.getString("style", "normal") ?: "normal",
-            p.getString("custom", "") ?: ""
+            p.getString("custom", "") ?: "",
+            p.getString("theme", "dark") ?: "dark",
+            p.getString("model", "fast") ?: "fast"
         )
     }
 
@@ -1399,6 +1488,8 @@ object SettingsStore {
             .putString("answerLang", st.answerLang)
             .putString("style", st.style)
             .putString("custom", st.custom)
+            .putString("theme", st.theme)
+            .putString("model", st.model)
             .apply()
     }
 }
@@ -1459,6 +1550,7 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onEditName: () -> Unit,
     onClearAll: () -> Unit,
+    onExport: () -> Unit,
     onAbout: () -> Unit
 ) {
     var custom by remember { mutableStateOf(settings.custom) }
@@ -1473,9 +1565,9 @@ fun SettingsScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(DrawerBg)
-            .statusBarsPadding()
             .navigationBarsPadding()
     ) {
+        Box(modifier = Modifier.fillMaxWidth().background(LocalPal.current.bg).statusBarsPadding())
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -1511,8 +1603,22 @@ fun SettingsScreen(
                 if (userName.isBlank()) "Nta ryashyizweho. Kanda ugirishyireho." else userName,
                 DrawerText
             ) { onEditName() }
+            Spacer(modifier = Modifier.height(8.dp))
+            SettingRow(
+                "Kwinjira (login)",
+                "Biraza vuba. Bizakwemerera kubika ibiganiro byawe kuri seriveri no kubikoresha kuri telefone zindi.",
+                DrawerMuted,
+                null
+            )
 
             SectionTitle("Isura")
+            Text("Ibara rya app", color = DrawerText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SettingChip("Wirabura", settings.theme == "dark", Modifier.weight(1f)) { onChange(settings.copy(theme = "dark")) }
+                SettingChip("Umweru", settings.theme == "light", Modifier.weight(1f)) { onChange(settings.copy(theme = "light")) }
+                SettingChip("Telefone", settings.theme == "system", Modifier.weight(1f)) { onChange(settings.copy(theme = "system")) }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
             Text("Ingano y'inyuguti", color = DrawerText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 SettingChip("Nto", settings.fontSize == 0, Modifier.weight(1f)) { onChange(settings.copy(fontSize = 0)) }
@@ -1546,6 +1652,18 @@ fun SettingsScreen(
                     }
                 }
             }
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("Ubwenge bwa Yacunne", color = DrawerText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SettingChip("Vuba", settings.model == "fast", Modifier.weight(1f)) { onChange(settings.copy(model = "fast")) }
+                SettingChip("Bwinshi (Pro)", settings.model == "pro", Modifier.weight(1f)) { onChange(settings.copy(model = "pro")) }
+            }
+            Text(
+                "Bwinshi busubiza neza, ariko butinda kandi bufise imipaka ku buntu. Iyo bunaniwe, Yacunne isubira ku buryo bwihuta.",
+                color = DrawerMuted,
+                fontSize = 13.sp,
+                modifier = Modifier.padding(top = 8.dp, start = 4.dp)
+            )
             Spacer(modifier = Modifier.height(10.dp))
             Text("Amabwiriza yanjye (kuri ibiganiro vyose)", color = DrawerText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
             TextField(
@@ -1570,6 +1688,8 @@ fun SettingsScreen(
             )
 
             SectionTitle("Ibiganiro")
+            SettingRow("Sohora ibiganiro vyose", "Sangiza ibiganiro vyawe vyose nk'inyandiko (WhatsApp, Email...).", DrawerText) { onExport() }
+            Spacer(modifier = Modifier.height(8.dp))
             SettingRow("Siba amateka yose", "Ibiganiro vyose bizosibwa kuri iyi telefone.", Color(0xFFDC2626)) { onClearAll() }
 
             SectionTitle("Guhuza n'izindi app")
