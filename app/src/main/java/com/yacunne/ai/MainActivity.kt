@@ -225,27 +225,44 @@ fun ChatScreen() {
         val myRun = runId
         val history = conversations.first { it.id == convId }.messages
         job = scope.launch {
-            val full = askGeminiWithFallback(history)
+            val target = java.util.concurrent.atomic.AtomicReference("")
+            val result = java.util.concurrent.atomic.AtomicReference("")
+            val done = java.util.concurrent.atomic.AtomicBoolean(false)
+            launch {
+                val r = askGeminiStream(history) { target.set(it) }
+                if (!isErrorReply(r)) target.set(r)
+                result.set(r)
+                done.set(true)
+            }
+            var shown = 0
+            while (true) {
+                val t = target.get()
+                if (shown < t.length) {
+                    val backlog = t.length - shown
+                    val step = if (backlog > 200) 8 else if (backlog > 60) 4 else 2
+                    shown = minOf(t.length, shown + step)
+                    if (myRun == runId) streaming = t.substring(0, shown)
+                    delay(16)
+                } else if (done.get()) {
+                    break
+                } else {
+                    delay(30)
+                }
+            }
             if (myRun != runId) return@launch
+            val full = result.get()
             if (isErrorReply(full)) {
                 errorMsg = full
+                streaming = null
                 loading = false
                 job = null
                 return@launch
             }
-            var i = 0
-            while (i < full.length) {
-                i = minOf(full.length, i + 3)
-                streaming = full.substring(0, i)
-                delay(14)
-            }
-            if (myRun == runId) {
-                addMessage(convId, ChatMessage(full, false))
-                streaming = null
-                loading = false
-                job = null
-                persist()
-            }
+            addMessage(convId, ChatMessage(full, false))
+            streaming = null
+            loading = false
+            job = null
+            persist()
         }
     }
 
