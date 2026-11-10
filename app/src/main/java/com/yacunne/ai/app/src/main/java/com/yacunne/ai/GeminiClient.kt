@@ -37,7 +37,7 @@ private const val SYSTEM_TEXT =
 
 private class GeminiResult(val code: Int, val body: String)
 
-private fun buildBody(history: List<ChatMessage>, model: String): String {
+private fun buildBody(history: List<ChatMessage>, model: String, extra: String): String {
     val contents = JSONArray()
     for (m in history) {
         val part = JSONObject().put("text", m.text)
@@ -47,7 +47,8 @@ private fun buildBody(history: List<ChatMessage>, model: String): String {
                 .put("parts", JSONArray().put(part))
         )
     }
-    val systemPart = JSONObject().put("text", SYSTEM_TEXT)
+    val systemText = if (extra.isBlank()) SYSTEM_TEXT else SYSTEM_TEXT + " " + extra.trim()
+    val systemPart = JSONObject().put("text", systemText)
     val body = JSONObject()
         .put("system_instruction", JSONObject().put("parts", JSONArray().put(systemPart)))
         .put("contents", contents)
@@ -138,9 +139,10 @@ private fun extractText(body: String): String {
 private suspend fun tryModel(
     model: String,
     history: List<ChatMessage>,
-    errors: MutableList<String>
+    errors: MutableList<String>,
+    extra: String
 ): String? {
-    val requestBody = buildBody(history, model)
+    val requestBody = buildBody(history, model, extra)
     var attempts = 0
     while (attempts < 3) {
         attempts++
@@ -173,10 +175,10 @@ private suspend fun tryModel(
     return null
 }
 
-suspend fun askGeminiWithFallback(history: List<ChatMessage>): String = withContext(Dispatchers.IO) {
+suspend fun askGeminiWithFallback(history: List<ChatMessage>, extra: String = ""): String = withContext(Dispatchers.IO) {
     try {
         val errors = mutableListOf<String>()
-        val first = tryModel(workingModel, history, errors)
+        val first = tryModel(workingModel, history, errors, extra)
         if (first != null) {
             return@withContext first
         }
@@ -192,7 +194,7 @@ suspend fun askGeminiWithFallback(history: List<ChatMessage>): String = withCont
             .filter { it != workingModel }
             .take(4)
         for (m in others) {
-            val text = tryModel(m, history, errors)
+            val text = tryModel(m, history, errors, extra)
             if (text != null) {
                 workingModel = m
                 return@withContext text
@@ -230,11 +232,12 @@ private fun extractStreamText(json: String): String {
 // Igisubizo kiza ijambo ku rindi (streaming). Iyo bidakunze, isubira ku buryo busanzwe.
 suspend fun askGeminiStream(
     history: List<ChatMessage>,
+    extra: String,
     onText: (String) -> Unit
 ): String = withContext(Dispatchers.IO) {
     val sb = StringBuilder()
     try {
-        val requestBody = buildBody(history, workingModel)
+        val requestBody = buildBody(history, workingModel, extra)
         val url = URL(
             "https://generativelanguage.googleapis.com/v1beta/models/" +
                 workingModel + ":streamGenerateContent?alt=sse"
@@ -252,7 +255,7 @@ suspend fun askGeminiStream(
             conn.outputStream.use { it.write(requestBody.toByteArray()) }
             val code = conn.responseCode
             if (code !in 200..299) {
-                return@withContext askGeminiWithFallback(history)
+                return@withContext askGeminiWithFallback(history, extra)
             }
             conn.inputStream.bufferedReader().use { reader ->
                 while (isActive) {
@@ -270,8 +273,8 @@ suspend fun askGeminiStream(
         } finally {
             conn.disconnect()
         }
-        if (sb.isEmpty()) askGeminiWithFallback(history) else sb.toString()
+        if (sb.isEmpty()) askGeminiWithFallback(history, extra) else sb.toString()
     } catch (e: java.io.IOException) {
-        if (sb.isNotEmpty()) sb.toString() else askGeminiWithFallback(history)
+        if (sb.isNotEmpty()) sb.toString() else askGeminiWithFallback(history, extra)
     }
 }
