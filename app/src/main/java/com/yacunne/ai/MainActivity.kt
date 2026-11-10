@@ -1625,6 +1625,17 @@ fun SettingsScreen(
                 SettingChip("Hagati", settings.fontSize == 1, Modifier.weight(1f)) { onChange(settings.copy(fontSize = 1)) }
                 SettingChip("Nini", settings.fontSize == 2, Modifier.weight(1f)) { onChange(settings.copy(fontSize = 2)) }
             }
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                "Ikigeragezo: Amahoro! Iyi ni ingano y'inyuguti wahisemo.",
+                color = DrawerText,
+                fontSize = (if (settings.fontSize == 0) 14 else if (settings.fontSize == 2) 18 else 16).sp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color.White)
+                    .padding(horizontal = 16.dp, vertical = 14.dp)
+            )
 
             SectionTitle("Uko Yacunne isubiza")
             Text("Uburyo bwo gusubiza", color = DrawerText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
