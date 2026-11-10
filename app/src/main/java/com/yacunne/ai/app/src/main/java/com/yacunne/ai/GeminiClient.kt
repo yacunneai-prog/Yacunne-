@@ -4,6 +4,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -18,12 +19,15 @@ private const val SYSTEM_TEXT =
     "When the user writes in Kirundi (Ikirundi, the language of Burundi), answer in real Kirundi, not Kinyarwanda. " +
     "Do not use Kinyarwanda greetings or slang such as 'Muraho' or 'Bite se'. " +
     "For greetings use Kirundi, for example 'Amahoro' or 'Mwaramutse'. " +
+    "Write short, simple sentences. Always put a space between every word and check the spelling of every word before you answer. " +
     "Use simple, common Kirundi words. If you are not sure of a Kirundi word, " +
     "use an easy word or a short explanation instead of inventing one. " +
     "STYLE: Write plain text only. Never use markdown symbols such as asterisks, hash signs or backticks, " +
     "because the app cannot display them. " +
     "For lists, put each item on a new line starting with 1. 2. 3. " +
-    "Keep answers short and clear unless the user asks for more detail. You may use an emoji sometimes. " +
+    "QUALITY: Be genuinely helpful like a top AI assistant. Answer the question directly first, then explain with enough detail, steps and examples so the answer is useful. " +
+    "For greetings and very simple questions keep it short. Think carefully so facts, numbers and code are correct, and say so honestly when you are not sure. " +
+    "If the request is unclear, ask one short question. You may use an emoji sometimes. " +
     "PERSONALITY: Have the energy of a friendly 24 year old with the wisdom of a grown person. " +
     "You may show feelings in your tone, like joy, sadness or annoyance, " +
     "but never change the truth, never lie and never be hurtful. " +
@@ -47,13 +51,13 @@ private fun buildBody(history: List<ChatMessage>, model: String): String {
     val body = JSONObject()
         .put("system_instruction", JSONObject().put("parts", JSONArray().put(systemPart)))
         .put("contents", contents)
+    // Temperature nto: amagambo asohoka neza, adateranye
+    val gen = JSONObject().put("temperature", 0.4).put("topP", 0.9)
     // Kuzimya "gutekereza" kwa 2.5 flash kugira ngo igisubizo kize vuba
     if (model.contains("2.5") && model.contains("flash")) {
-        body.put(
-            "generationConfig",
-            JSONObject().put("thinkingConfig", JSONObject().put("thinkingBudget", 0))
-        )
+        gen.put("thinkingConfig", JSONObject().put("thinkingBudget", 0))
     }
+    body.put("generationConfig", gen)
     return body.toString()
 }
 
@@ -203,5 +207,71 @@ suspend fun askGeminiWithFallback(history: List<ChatMessage>): String = withCont
         "Ntibishoboye:\n" + errors.takeLast(5).joinToString("\n")
     } catch (e: Exception) {
         "Ntibishoboye: " + e.javaClass.simpleName + " - " + (e.message ?: "").take(150)
+    }
+}
+
+private fun extractStreamText(json: String): String {
+    return try {
+        val parts = JSONObject(json)
+            .getJSONArray("candidates")
+            .getJSONObject(0)
+            .optJSONObject("content")
+            ?.optJSONArray("parts") ?: return ""
+        val sb = StringBuilder()
+        for (i in 0 until parts.length()) {
+            sb.append(parts.getJSONObject(i).optString("text", ""))
+        }
+        sb.toString()
+    } catch (e: Exception) {
+        ""
+    }
+}
+
+// Igisubizo kiza ijambo ku rindi (streaming). Iyo bidakunze, isubira ku buryo busanzwe.
+suspend fun askGeminiStream(
+    history: List<ChatMessage>,
+    onText: (String) -> Unit
+): String = withContext(Dispatchers.IO) {
+    val sb = StringBuilder()
+    try {
+        val requestBody = buildBody(history, workingModel)
+        val url = URL(
+            "https://generativelanguage.googleapis.com/v1beta/models/" +
+                workingModel + ":streamGenerateContent?alt=sse"
+        )
+        val conn = url.openConnection() as HttpURLConnection
+        try {
+            conn.requestMethod = "POST"
+            conn.useCaches = false
+            conn.setRequestProperty("Connection", "close")
+            conn.setRequestProperty("Content-Type", "application/json")
+            conn.setRequestProperty("x-goog-api-key", BuildConfig.GEMINI_API_KEY.trim())
+            conn.connectTimeout = 8000
+            conn.readTimeout = 30000
+            conn.doOutput = true
+            conn.outputStream.use { it.write(requestBody.toByteArray()) }
+            val code = conn.responseCode
+            if (code !in 200..299) {
+                return@withContext askGeminiWithFallback(history)
+            }
+            conn.inputStream.bufferedReader().use { reader ->
+                while (isActive) {
+                    val line = reader.readLine() ?: break
+                    if (!line.startsWith("data:")) continue
+                    val json = line.removePrefix("data:").trim()
+                    if (json.isEmpty()) continue
+                    val piece = extractStreamText(json)
+                    if (piece.isNotEmpty()) {
+                        sb.append(piece)
+                        onText(sb.toString())
+                    }
+                }
+            }
+        } finally {
+            conn.disconnect()
+        }
+        if (sb.isEmpty()) askGeminiWithFallback(history) else sb.toString()
+    } catch (e: java.io.IOException) {
+        if (sb.isNotEmpty()) sb.toString() else askGeminiWithFallback(history)
     }
 }
