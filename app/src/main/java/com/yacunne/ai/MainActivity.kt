@@ -7,6 +7,11 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -444,7 +449,7 @@ fun ChatScreen() {
         ask(convId)
     }
 
-    LaunchedEffect(currentId, messages.size, streaming?.length) {
+    LaunchedEffect(currentId, messages.size, streaming?.length, loading) {
         if (messages.isNotEmpty() || streaming != null) {
             listState.scrollBy(100000f)
         }
@@ -558,17 +563,11 @@ fun ChatScreen() {
                                             )
                                         }
                                     }
+                                    if (loading && streaming == null) {
+                                        item { ThinkingIndicator() }
+                                    }
                                 }
                             }
-                        }
-                        if (loading && streaming == null) {
-                            Text(
-                                "Irimo gutekereza...",
-                                color = pal.soft,
-                                fontSize = 13.sp,
-                                fontStyle = FontStyle.Italic,
-                                modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
-                            )
                         }
                         val err = errorMsg
                         if (err != null && !loading) {
@@ -1795,5 +1794,55 @@ fun SettingsScreen(
             SectionTitle("Ibijyanye na Yacunne")
             SettingRow("Yacunne AI", "Verisiyo 1.0. Soma amakuru ya app.", P.panelText) { onAbout() }
         }
+    }
+}
+
+@Composable
+fun ThinkingIndicator() {
+    val P = LocalPal.current
+    val phrases = listOf(
+        "Irimo gutekereza",
+        "Irimo gusuzuma ikibazo cawe",
+        "Irimo gutegura igisubizo",
+        "Irimo kurangiza"
+    )
+    var seconds by remember { mutableStateOf(0) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1000)
+            seconds++
+        }
+    }
+    val phrase = phrases[(seconds / 3) % phrases.size]
+    val transition = rememberInfiniteTransition(label = "dots")
+    Row(
+        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        for (i in 0 until 3) {
+            val a by transition.animateFloat(
+                initialValue = 0.25f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(durationMillis = 600, delayMillis = i * 150),
+                    repeatMode = RepeatMode.Reverse
+                ),
+                label = "dot" + i
+            )
+            Box(
+                modifier = Modifier
+                    .padding(end = 4.dp)
+                    .size(8.dp)
+                    .alpha(a)
+                    .background(P.accent, CircleShape)
+            )
+        }
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            phrase + "..." + (if (seconds >= 5) " (" + seconds + "s)" else ""),
+            color = P.soft,
+            fontSize = 14.sp,
+            fontStyle = FontStyle.Italic
+        )
     }
 }
