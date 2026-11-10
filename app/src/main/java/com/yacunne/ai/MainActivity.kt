@@ -41,7 +41,12 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Create
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
@@ -100,6 +105,12 @@ private val BubbleDark = Color(0xFF1C2540)
 private val BubbleBorder = Color(0xFF3D4A75)
 private val SoftText = Color(0xFFBCC4E0)
 private val Gold = Color(0xFFF5B63D)
+private val DrawerBg = Color(0xFFF5F4EF)
+private val DrawerText = Color(0xFF1B1B1F)
+private val DrawerMuted = Color(0xFF6B6B73)
+private val DrawerLine = Color(0xFFDAD8CF)
+private val DrawerSel = Color(0xFFE6E4DB)
+private val DrawerAccent = Color(0xFF2563EB)
 
 private val NeonColors = darkColorScheme(
     primary = NeonBlue,
@@ -145,6 +156,14 @@ fun ChatScreen() {
     var showClearConfirm by remember { mutableStateOf(false) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
     var userName by remember { mutableStateOf(ProfileStore.load(context)) }
+    val projects = remember {
+        mutableStateListOf<Project>().apply { addAll(ProjectStore.load(context)) }
+    }
+    var activeProjectId by remember { mutableStateOf("") }
+    var newMode by remember { mutableStateOf("") }
+    var renameId by remember { mutableStateOf<String?>(null) }
+    var editingProject by remember { mutableStateOf<Project?>(null) }
+    var showProjectDialog by remember { mutableStateOf(false) }
     var showProfile by remember { mutableStateOf(false) }
     var runId by remember { mutableStateOf(0) }
     var runningConv by remember { mutableStateOf("") }
@@ -162,7 +181,35 @@ fun ChatScreen() {
             val c = conversations[idx]
             conversations[idx] = c.copy(messages = c.messages + msg)
         } else {
-            conversations.add(0, Conversation(convId, msg.text.take(32), listOf(msg)))
+            val title = if (newMode.isNotEmpty()) modeTitle(newMode) else msg.text.take(32)
+            conversations.add(
+                0,
+                Conversation(convId, title, listOf(msg), false, activeProjectId, newMode)
+            )
+        }
+    }
+
+    fun toggleStar(id: String) {
+        val idx = conversations.indexOfFirst { it.id == id }
+        if (idx >= 0) {
+            conversations[idx] = conversations[idx].copy(starred = !conversations[idx].starred)
+            persist()
+        }
+    }
+
+    fun moveToProject(id: String, pid: String) {
+        val idx = conversations.indexOfFirst { it.id == id }
+        if (idx >= 0) {
+            conversations[idx] = conversations[idx].copy(projectId = pid)
+            persist()
+        }
+    }
+
+    fun renameConv(id: String, title: String) {
+        val idx = conversations.indexOfFirst { it.id == id }
+        if (idx >= 0) {
+            conversations[idx] = conversations[idx].copy(title = title)
+            persist()
         }
     }
 
@@ -183,6 +230,7 @@ fun ChatScreen() {
     fun newChat() {
         stopGenerating()
         currentId = UUID.randomUUID().toString()
+        newMode = ""
         input = ""
     }
 
@@ -191,6 +239,7 @@ fun ChatScreen() {
         if (id == currentId) {
             stopGenerating()
             currentId = UUID.randomUUID().toString()
+            newMode = ""
         }
         persist()
     }
@@ -199,6 +248,7 @@ fun ChatScreen() {
         stopGenerating()
         conversations.clear()
         currentId = UUID.randomUUID().toString()
+        newMode = ""
         persist()
     }
 
@@ -223,13 +273,18 @@ fun ChatScreen() {
         runningConv = convId
         runId++
         val myRun = runId
-        val history = conversations.first { it.id == convId }.messages
+        val conv = conversations.first { it.id == convId }
+        val history = conv.messages
+        val extra = buildExtra(
+            conv.mode,
+            projects.firstOrNull { it.id == conv.projectId }?.instructions ?: ""
+        )
         job = scope.launch {
             val target = java.util.concurrent.atomic.AtomicReference("")
             val result = java.util.concurrent.atomic.AtomicReference("")
             val done = java.util.concurrent.atomic.AtomicBoolean(false)
             launch {
-                val r = askGeminiStream(history) { target.set(it) }
+                val r = askGeminiStream(history, extra) { target.set(it) }
                 if (!isErrorReply(r)) target.set(r)
                 result.set(r)
                 done.set(true)
@@ -285,10 +340,12 @@ fun ChatScreen() {
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
-            ModalDrawerSheet(drawerContainerColor = Color(0xFF131C33)) {
+            ModalDrawerSheet(drawerContainerColor = DrawerBg) {
                 DrawerContent(
                     conversations = conversations,
+                    projects = projects,
                     currentId = currentId,
+                    activeProjectId = activeProjectId,
                     onNew = {
                         newChat()
                         scope.launch { drawerState.close() }
@@ -299,11 +356,26 @@ fun ChatScreen() {
                         scope.launch { drawerState.close() }
                     },
                     onDelete = { id -> deleteConversation(id) },
+                    onToggleStar = { id -> toggleStar(id) },
+                    onRename = { id -> renameId = id },
+                    onMove = { id, pid -> moveToProject(id, pid) },
+                    onSelectProject = { id ->
+                        activeProjectId = if (activeProjectId == id) "" else id
+                    },
+                    onNewProject = {
+                        editingProject = null
+                        showProjectDialog = true
+                    },
+                    onEditProject = { p ->
+                        editingProject = p
+                        showProjectDialog = true
+                    },
                     userName = userName,
                     onProfile = { showProfile = true },
-                    onStart = { prompt ->
+                    onStart = { mode ->
                         newChat()
-                        sendText(prompt)
+                        newMode = mode
+                        sendText(modePrompt(mode))
                         scope.launch { drawerState.close() }
                     }
                 )
@@ -421,6 +493,92 @@ fun ChatScreen() {
                     }
                 )
             }
+            if (showProjectDialog) {
+                val editing = editingProject
+                var nameDraft by remember { mutableStateOf(editing?.name ?: "") }
+                var instrDraft by remember { mutableStateOf(editing?.instructions ?: "") }
+                AlertDialog(
+                    onDismissRequest = { showProjectDialog = false },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            val n = nameDraft.trim().take(30)
+                            if (n.isNotEmpty()) {
+                                val instr = instrDraft.trim().take(600)
+                                if (editing == null) {
+                                    projects.add(Project(UUID.randomUUID().toString(), n, instr))
+                                } else {
+                                    val i = projects.indexOfFirst { it.id == editing.id }
+                                    if (i >= 0) projects[i] = editing.copy(name = n, instructions = instr)
+                                }
+                                ProjectStore.save(context, projects.toList())
+                                showProjectDialog = false
+                            }
+                        }) { Text("Bika") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showProjectDialog = false }) { Text("Reka") }
+                    },
+                    title = { Text(if (editing == null) "Umushinga mushasha" else "Hindura umushinga") },
+                    text = {
+                        Column {
+                            TextField(
+                                value = nameDraft,
+                                onValueChange = { nameDraft = it },
+                                singleLine = true,
+                                placeholder = { Text("Izina ry'umushinga") }
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            TextField(
+                                value = instrDraft,
+                                onValueChange = { instrDraft = it },
+                                maxLines = 5,
+                                placeholder = { Text("Amabwiriza ya Yacunne kuri uyu mushinga (si ngombwa)") }
+                            )
+                            if (editing != null) {
+                                TextButton(onClick = {
+                                    projects.removeAll { it.id == editing.id }
+                                    for (i in conversations.indices) {
+                                        if (conversations[i].projectId == editing.id) {
+                                            conversations[i] = conversations[i].copy(projectId = "")
+                                        }
+                                    }
+                                    if (activeProjectId == editing.id) activeProjectId = ""
+                                    ProjectStore.save(context, projects.toList())
+                                    persist()
+                                    showProjectDialog = false
+                                }) { Text("Siba umushinga", color = Color(0xFFFF8A8A)) }
+                            }
+                        }
+                    }
+                )
+            }
+            val rid = renameId
+            if (rid != null) {
+                var titleDraft by remember {
+                    mutableStateOf(conversations.firstOrNull { it.id == rid }?.title ?: "")
+                }
+                AlertDialog(
+                    onDismissRequest = { renameId = null },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            val t = titleDraft.trim().take(40)
+                            if (t.isNotEmpty()) renameConv(rid, t)
+                            renameId = null
+                        }) { Text("Bika") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { renameId = null }) { Text("Reka") }
+                    },
+                    title = { Text("Hindura izina ry'ikiganiro") },
+                    text = {
+                        TextField(
+                            value = titleDraft,
+                            onValueChange = { titleDraft = it },
+                            singleLine = true
+                        )
+                    }
+                )
+            }
             if (showClearConfirm) {
                 AlertDialog(
                     onDismissRequest = { showClearConfirm = false },
@@ -441,37 +599,112 @@ fun ChatScreen() {
     }
 }
 
+private fun modeTitle(mode: String): String = when (mode) {
+    "learn" -> "Kwiga"
+    "write" -> "Kwandika"
+    "plan" -> "Gutegura"
+    "translate" -> "Guhindura"
+    else -> ""
+}
+
+private fun modePrompt(mode: String): String = when (mode) {
+    "learn" -> "Ndashaka kwiga. Mbaza ikintu nshaka kwiga hanyuma unyigishe buhoro buhoro."
+    "write" -> "Ndashaka ko umfasha kwandika ubutumwa. Mbaza uwo ndandikira n'ico nshaka kuvuga."
+    "plan" -> "Ndashaka igitekerezo c'umushinga. Mbaza ibibazo bike hanyuma umpe ibitekerezo."
+    "translate" -> "Ndashaka ko umfasha guhindura amagambo mu zindi ndimi. Mbaza ururimi n'amagambo."
+    else -> ""
+}
+
+private fun modeInstruction(mode: String): String = when (mode) {
+    "learn" -> "MODE: You are a patient teacher. Ask what the user wants to learn and their level, " +
+        "then teach step by step with short lessons, simple examples and one small exercise at the end."
+    "write" -> "MODE: You are a writing helper. Help write messages, letters and posts in the user's language. " +
+        "Ask who it is for if needed, then give a ready-to-send draft and offer a shorter or warmer version."
+    "plan" -> "MODE: You are a planner. Ask a few short questions, then give a clear plan with steps, " +
+        "priorities and the next three actions. Think about money, time and risks."
+    "translate" -> "MODE: You are a careful translator. Ask which languages if unclear. " +
+        "Give the translation first, then short notes about tone or alternatives. Be extra careful with Kirundi."
+    else -> ""
+}
+
+private fun buildExtra(mode: String, projectInstructions: String): String {
+    var t = modeInstruction(mode)
+    if (projectInstructions.isNotBlank()) {
+        t = t + " PROJECT INSTRUCTIONS FROM THE USER: " + projectInstructions.trim()
+    }
+    return t
+}
+
 @Composable
-fun StartTile(
-    label: String,
+fun DrawerRow(
     icon: ImageVector,
+    label: String,
     tint: Color,
-    modifier: Modifier,
+    selected: Boolean,
+    trailing: ImageVector?,
     onClick: () -> Unit
 ) {
-    val shape = RoundedCornerShape(14.dp)
-    Column(
-        modifier = modifier
-            .clip(shape)
-            .background(BubbleDark)
-            .border(1.dp, BubbleBorder, shape)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (selected) DrawerSel else Color.Transparent)
             .clickable { onClick() }
-            .padding(vertical = 10.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(label, color = Color.White, fontSize = 12.sp, maxLines = 1)
+        Spacer(modifier = Modifier.width(14.dp))
+        Text(label, color = DrawerText, fontSize = 16.sp, modifier = Modifier.weight(1f))
+        if (trailing != null) {
+            Icon(trailing, contentDescription = null, tint = DrawerMuted, modifier = Modifier.size(20.dp))
+        }
+    }
+}
+
+@Composable
+fun DrawerSubRow(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    trailing: @Composable () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (selected) DrawerSel else Color.Transparent)
+            .clickable { onClick() }
+            .padding(start = 48.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            label,
+            color = DrawerText,
+            fontSize = 15.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+        trailing()
     }
 }
 
 @Composable
 fun DrawerContent(
     conversations: List<Conversation>,
+    projects: List<Project>,
     currentId: String,
+    activeProjectId: String,
     onNew: () -> Unit,
     onOpen: (String) -> Unit,
     onDelete: (String) -> Unit,
+    onToggleStar: (String) -> Unit,
+    onRename: (String) -> Unit,
+    onMove: (String, String) -> Unit,
+    onSelectProject: (String) -> Unit,
+    onNewProject: () -> Unit,
+    onEditProject: (Project) -> Unit,
     userName: String,
     onProfile: () -> Unit,
     onStart: (String) -> Unit
@@ -479,12 +712,27 @@ fun DrawerContent(
     var searching by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
     var showAll by remember { mutableStateOf(false) }
-    val filtered = if (query.isBlank()) {
-        conversations
-    } else {
-        conversations.filter { it.title.contains(query.trim(), ignoreCase = true) }
+    var projectsOpen by remember { mutableStateOf(false) }
+    var modesOpen by remember { mutableStateOf(false) }
+    var onlyStarred by remember { mutableStateOf(false) }
+    var menuFor by remember { mutableStateOf("") }
+
+    val base = conversations.filter {
+        (activeProjectId.isEmpty() || it.projectId == activeProjectId) &&
+            (!onlyStarred || it.starred)
     }
-    val visible = if (showAll || query.isNotBlank() || filtered.size <= 6) filtered else filtered.take(6)
+    val filtered = if (query.isBlank()) {
+        base
+    } else {
+        base.filter { it.title.contains(query.trim(), ignoreCase = true) }
+    }
+    val sorted = filtered.sortedByDescending { it.starred }
+    val visible = if (showAll || query.isNotBlank() || onlyStarred || sorted.size <= 8) {
+        sorted
+    } else {
+        sorted.take(8)
+    }
+    val activeProject = projects.firstOrNull { it.id == activeProjectId }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         if (searching) {
@@ -494,22 +742,22 @@ fun DrawerContent(
                     onValueChange = { query = it },
                     modifier = Modifier.weight(1f),
                     singleLine = true,
-                    placeholder = { Text("Shakisha ibiganiro", color = Color(0xFFA3ABC8)) },
+                    placeholder = { Text("Shakisha ibiganiro", color = DrawerMuted) },
                     shape = RoundedCornerShape(16.dp),
                     colors = TextFieldDefaults.colors(
-                        focusedContainerColor = BubbleDark,
-                        unfocusedContainerColor = BubbleDark,
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White,
                         focusedIndicatorColor = Color.Transparent,
                         unfocusedIndicatorColor = Color.Transparent,
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
-                        cursorColor = NeonBlue
+                        focusedTextColor = DrawerText,
+                        unfocusedTextColor = DrawerText,
+                        cursorColor = DrawerAccent
                     )
                 )
                 Icon(
                     Icons.Filled.Close,
                     contentDescription = "Funga",
-                    tint = Color.White,
+                    tint = DrawerText,
                     modifier = Modifier
                         .size(44.dp)
                         .clip(CircleShape)
@@ -524,7 +772,7 @@ fun DrawerContent(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     "Yacunne AI",
-                    color = Color.White,
+                    color = DrawerText,
                     fontSize = 24.sp,
                     fontWeight = FontWeight.ExtraBold,
                     modifier = Modifier.weight(1f)
@@ -532,7 +780,7 @@ fun DrawerContent(
                 Icon(
                     Icons.Filled.Search,
                     contentDescription = "Shakisha",
-                    tint = Color.White,
+                    tint = DrawerText,
                     modifier = Modifier
                         .size(44.dp)
                         .clip(CircleShape)
@@ -547,105 +795,224 @@ fun DrawerContent(
                     modifier = Modifier
                         .size(44.dp)
                         .clip(CircleShape)
-                        .background(NeonBlue)
+                        .background(DrawerAccent)
                         .clickable { onNew() }
                         .padding(11.dp)
                 )
             }
         }
-        Spacer(modifier = Modifier.height(14.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            StartTile(
-                "Kwiga", Icons.Filled.Star, Color(0xFF7DB4FF), Modifier.weight(1f)
-            ) { onStart("Ndashaka kwiga. Mbaza ikintu nshaka kwiga hanyuma unyigishe buhoro buhoro.") }
-            StartTile(
-                "Kwandika", Icons.Filled.Create, Color(0xFF4ADE9F), Modifier.weight(1f)
-            ) { onStart("Ndashaka ko umfasha kwandika ubutumwa. Mbaza uwo ndandikira n'ico nshaka kuvuga.") }
-            StartTile(
-                "Gutegura", Icons.Filled.Build, Color(0xFFFFCB47), Modifier.weight(1f)
-            ) { onStart("Ndashaka igitekerezo c'umushinga. Mbaza ibibazo bike hanyuma umpe ibitekerezo.") }
-            StartTile(
-                "Guhindura", Icons.Filled.Refresh, Color(0xFFFF8FC4), Modifier.weight(1f)
-            ) { onStart("Ndashaka ko umfasha guhindura amagambo mu zindi ndimi. Mbaza ururimi n'amagambo.") }
+        Spacer(modifier = Modifier.height(10.dp))
+
+        DrawerRow(
+            Icons.Filled.Home, "Imishinga", DrawerAccent, activeProjectId.isNotEmpty(),
+            if (projectsOpen) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown
+        ) { projectsOpen = !projectsOpen }
+        if (projectsOpen) {
+            projects.forEach { p ->
+                DrawerSubRow(p.name, p.id == activeProjectId, { onSelectProject(p.id) }) {
+                    Icon(
+                        Icons.Filled.Edit,
+                        contentDescription = "Hindura",
+                        tint = DrawerMuted,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .clickable { onEditProject(p) }
+                            .padding(9.dp)
+                    )
+                }
+            }
+            Text(
+                "+ Umushinga mushasha",
+                color = DrawerAccent,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { onNewProject() }
+                    .padding(start = 48.dp, top = 10.dp, bottom = 10.dp)
+            )
         }
-        Spacer(modifier = Modifier.height(18.dp))
-        Text("Amateka", color = SoftText, fontSize = 13.sp)
-        Spacer(modifier = Modifier.height(8.dp))
+        DrawerRow(
+            Icons.Filled.Star, "Ibyo nkunda", Color(0xFFD97706), onlyStarred, null
+        ) { onlyStarred = !onlyStarred }
+        DrawerRow(
+            Icons.Filled.Settings, "Uburyo", Color(0xFF059669), false,
+            if (modesOpen) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown
+        ) { modesOpen = !modesOpen }
+        if (modesOpen) {
+            DrawerSubRow("Kwiga", false, { onStart("learn") }) {
+                Icon(Icons.Filled.Info, null, tint = Color(0xFF2563EB), modifier = Modifier.size(20.dp))
+            }
+            DrawerSubRow("Kwandika", false, { onStart("write") }) {
+                Icon(Icons.Filled.Create, null, tint = Color(0xFF059669), modifier = Modifier.size(20.dp))
+            }
+            DrawerSubRow("Gutegura", false, { onStart("plan") }) {
+                Icon(Icons.Filled.Build, null, tint = Color(0xFFD97706), modifier = Modifier.size(20.dp))
+            }
+            DrawerSubRow("Guhindura", false, { onStart("translate") }) {
+                Icon(Icons.Filled.Refresh, null, tint = Color(0xFFDB2777), modifier = Modifier.size(20.dp))
+            }
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
+        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(DrawerLine))
+        Spacer(modifier = Modifier.height(10.dp))
+        if (activeProject != null) {
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(DrawerSel)
+                    .clickable { onSelectProject(activeProject.id) }
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Umushinga: " + activeProject.name,
+                    color = DrawerText,
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Icon(Icons.Filled.Close, null, tint = DrawerMuted, modifier = Modifier.size(14.dp))
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+        Text("Amateka", color = DrawerMuted, fontSize = 13.sp)
+        Spacer(modifier = Modifier.height(6.dp))
         if (visible.isEmpty()) {
             Text(
                 if (query.isBlank()) "Nta kiganiro kirabikwa." else "Nta cabonetse.",
-                color = SoftText,
+                color = DrawerMuted,
                 fontSize = 14.sp,
                 fontStyle = FontStyle.Italic
             )
         }
         LazyColumn(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+            verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             items(visible, key = { it.id }) { c ->
                 val selected = c.id == currentId
-                val shape = RoundedCornerShape(14.dp)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(shape)
-                        .background(if (selected) Color(0xFF1B2440) else Color.Transparent)
-                        .border(1.dp, if (selected) NeonBlue else Color.Transparent, shape)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (selected) DrawerSel else Color.Transparent)
                         .clickable { onOpen(c.id) }
-                        .padding(start = 14.dp, top = 4.dp, bottom = 4.dp, end = 4.dp),
+                        .padding(start = 12.dp, top = 2.dp, bottom = 2.dp, end = 2.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    if (c.starred) {
+                        Icon(
+                            Icons.Filled.Star,
+                            contentDescription = null,
+                            tint = Color(0xFFD97706),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                    }
                     Text(
                         c.title,
-                        color = Color(0xFFF1F2FF),
+                        color = DrawerText,
                         fontSize = 15.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
-                    Icon(
-                        Icons.Filled.Delete,
-                        contentDescription = "Siba",
-                        tint = SoftText,
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .clickable { onDelete(c.id) }
-                            .padding(10.dp)
-                    )
+                    Box {
+                        Icon(
+                            Icons.Filled.MoreVert,
+                            contentDescription = "Ibindi",
+                            tint = DrawerMuted,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .clickable { menuFor = c.id }
+                                .padding(9.dp)
+                        )
+                        DropdownMenu(
+                            expanded = menuFor == c.id,
+                            onDismissRequest = { menuFor = "" }
+                        ) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(if (c.starred) "Vana mu byo nkunda" else "Shira mu byo nkunda")
+                                },
+                                onClick = {
+                                    menuFor = ""
+                                    onToggleStar(c.id)
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Hindura izina") },
+                                onClick = {
+                                    menuFor = ""
+                                    onRename(c.id)
+                                }
+                            )
+                            projects.forEach { p ->
+                                DropdownMenuItem(
+                                    text = { Text("Shira muri " + p.name) },
+                                    onClick = {
+                                        menuFor = ""
+                                        onMove(c.id, p.id)
+                                    }
+                                )
+                            }
+                            if (c.projectId.isNotEmpty()) {
+                                DropdownMenuItem(
+                                    text = { Text("Vana mu mushinga") },
+                                    onClick = {
+                                        menuFor = ""
+                                        onMove(c.id, "")
+                                    }
+                                )
+                            }
+                            DropdownMenuItem(
+                                text = { Text("Siba") },
+                                onClick = {
+                                    menuFor = ""
+                                    onDelete(c.id)
+                                }
+                            )
+                        }
+                    }
                 }
             }
-            if (query.isBlank() && filtered.size > 6) {
+            if (query.isBlank() && !onlyStarred && sorted.size > 8) {
                 item {
                     Text(
                         if (showAll) "Reba bike" else "Reba vyose",
-                        color = NeonBlue,
+                        color = DrawerAccent,
                         fontSize = 14.sp,
                         modifier = Modifier
                             .clip(RoundedCornerShape(10.dp))
                             .clickable { showAll = !showAll }
-                            .padding(horizontal = 14.dp, vertical = 10.dp)
+                            .padding(horizontal = 12.dp, vertical = 10.dp)
                     )
                 }
             }
         }
         Spacer(modifier = Modifier.height(8.dp))
-        Box(modifier = Modifier.fillMaxWidth().height(0.5.dp).background(BubbleBorder))
+        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(DrawerLine))
         Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 10.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .clickable { onProfile() }
+                .padding(6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
                     .size(46.dp)
                     .clip(CircleShape)
-                    .background(NeonBlue)
-                    .border(1.5.dp, Color(0xFF93C5FD), CircleShape)
-                    .clickable { onProfile() },
+                    .background(DrawerAccent),
                 contentAlignment = Alignment.Center
             ) {
                 val initial = userName.trim().take(1).uppercase()
@@ -661,16 +1028,16 @@ fun DrawerContent(
                 }
             }
             Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f).clickable { onProfile() }) {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     if (userName.isBlank()) "Ongeraho izina ryawe" else userName,
-                    color = Color.White,
+                    color = DrawerText,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Text("Konti yawe", color = SoftText, fontSize = 13.sp)
+                Text("Konti yawe", color = DrawerMuted, fontSize = 13.sp)
             }
         }
     }
