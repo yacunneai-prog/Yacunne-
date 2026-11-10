@@ -38,7 +38,13 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Create
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
@@ -69,6 +75,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -137,6 +144,8 @@ fun ChatScreen() {
     var showAbout by remember { mutableStateOf(false) }
     var showClearConfirm by remember { mutableStateOf(false) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
+    var userName by remember { mutableStateOf(ProfileStore.load(context)) }
+    var showProfile by remember { mutableStateOf(false) }
     var runId by remember { mutableStateOf(0) }
     var runningConv by remember { mutableStateOf("") }
 
@@ -272,7 +281,14 @@ fun ChatScreen() {
                         currentId = id
                         scope.launch { drawerState.close() }
                     },
-                    onDelete = { id -> deleteConversation(id) }
+                    onDelete = { id -> deleteConversation(id) },
+                    userName = userName,
+                    onProfile = { showProfile = true },
+                    onStart = { prompt ->
+                        newChat()
+                        sendText(prompt)
+                        scope.launch { drawerState.close() }
+                    }
                 )
             }
         }
@@ -295,7 +311,7 @@ fun ChatScreen() {
             )
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 if (messages.isEmpty() && streaming == null) {
-                    EmptyState(onPick = { sendText(it) })
+                    EmptyState(userName = userName, onPick = { sendText(it) })
                 } else {
                     LazyColumn(
                         state = listState,
@@ -358,6 +374,36 @@ fun ChatScreen() {
                     text = { Text("Umufasha wawe wa AI. Ibiganiro byawe bibikwa kuri telefone yawe.") }
                 )
             }
+            if (showProfile) {
+                var draft by remember { mutableStateOf(userName) }
+                AlertDialog(
+                    onDismissRequest = { showProfile = false },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            val n = draft.trim().take(30)
+                            ProfileStore.save(context, n)
+                            userName = n
+                            showProfile = false
+                        }) { Text("Bika") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showProfile = false }) { Text("Reka") }
+                    },
+                    title = { Text("Konti yawe") },
+                    text = {
+                        Column {
+                            Text("Andika izina ryawe. Ibiganiro byawe ntibizosibwa.")
+                            Spacer(modifier = Modifier.height(12.dp))
+                            TextField(
+                                value = draft,
+                                onValueChange = { draft = it },
+                                singleLine = true,
+                                placeholder = { Text("Izina ryawe") }
+                            )
+                        }
+                    }
+                )
+            }
             if (showClearConfirm) {
                 AlertDialog(
                     onDismissRequest = { showClearConfirm = false },
@@ -379,49 +425,141 @@ fun ChatScreen() {
 }
 
 @Composable
+fun StartTile(
+    label: String,
+    icon: ImageVector,
+    tint: Color,
+    modifier: Modifier,
+    onClick: () -> Unit
+) {
+    val shape = RoundedCornerShape(16.dp)
+    Row(
+        modifier = modifier
+            .clip(shape)
+            .background(BubbleDark)
+            .border(0.5.dp, BubbleBorder, shape)
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(label, color = Color(0xFFF1F2FF), fontSize = 15.sp, maxLines = 1)
+    }
+}
+
+@Composable
 fun DrawerContent(
     conversations: List<Conversation>,
     currentId: String,
     onNew: () -> Unit,
     onOpen: (String) -> Unit,
-    onDelete: (String) -> Unit
+    onDelete: (String) -> Unit,
+    userName: String,
+    onProfile: () -> Unit,
+    onStart: (String) -> Unit
 ) {
+    var searching by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
+    var showAll by remember { mutableStateOf(false) }
+    val filtered = if (query.isBlank()) {
+        conversations
+    } else {
+        conversations.filter { it.title.contains(query.trim(), ignoreCase = true) }
+    }
+    val visible = if (showAll || query.isNotBlank() || filtered.size <= 6) filtered else filtered.take(6)
+
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                "Yacunne AI",
-                color = Color.White,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.ExtraBold
-            )
+        if (searching) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    placeholder = { Text("Shakisha ibiganiro", color = Color(0xFF7A839F)) },
+                    shape = RoundedCornerShape(16.dp),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = BubbleDark,
+                        unfocusedContainerColor = BubbleDark,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        cursorColor = NeonBlue
+                    )
+                )
+                Icon(
+                    Icons.Filled.Close,
+                    contentDescription = "Funga",
+                    tint = Color.White,
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .clickable {
+                            searching = false
+                            query = ""
+                        }
+                        .padding(10.dp)
+                )
+            }
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "Yacunne AI",
+                    color = Color.White,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    modifier = Modifier.weight(1f)
+                )
+                Icon(
+                    Icons.Filled.Search,
+                    contentDescription = "Shakisha",
+                    tint = Color.White,
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .clickable { searching = true }
+                        .padding(10.dp)
+                )
+            }
         }
-        Spacer(modifier = Modifier.height(16.dp))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .background(NeonBlue)
-                .clickable { onNew() }
-                .padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(Icons.Filled.Add, contentDescription = null, tint = Color.White)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Ikiganiro gishya", color = Color.White, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(14.dp))
+        Row(modifier = Modifier.fillMaxWidth()) {
+            StartTile(
+                "Kwiga", Icons.Filled.Star, Color(0xFF60A5FA), Modifier.weight(1f)
+            ) { onStart("Ndashaka kwiga. Mbaza ikintu nshaka kwiga hanyuma unyigishe buhoro buhoro.") }
+            Spacer(modifier = Modifier.width(10.dp))
+            StartTile(
+                "Kwandika", Icons.Filled.Create, Color(0xFF34D399), Modifier.weight(1f)
+            ) { onStart("Ndashaka ko umfasha kwandika ubutumwa. Mbaza uwo ndandikira n'ico nshaka kuvuga.") }
+        }
+        Spacer(modifier = Modifier.height(10.dp))
+        Row(modifier = Modifier.fillMaxWidth()) {
+            StartTile(
+                "Gutegura", Icons.Filled.Build, Color(0xFFFBBF24), Modifier.weight(1f)
+            ) { onStart("Ndashaka igitekerezo c'umushinga. Mbaza ibibazo bike hanyuma umpe ibitekerezo.") }
+            Spacer(modifier = Modifier.width(10.dp))
+            StartTile(
+                "Guhindura", Icons.Filled.Refresh, Color(0xFFF472B6), Modifier.weight(1f)
+            ) { onStart("Ndashaka ko umfasha guhindura amagambo mu zindi ndimi. Mbaza ururimi n'amagambo.") }
         }
         Spacer(modifier = Modifier.height(18.dp))
         Text("Amateka", color = SoftText, fontSize = 13.sp)
         Spacer(modifier = Modifier.height(8.dp))
-        if (conversations.isEmpty()) {
+        if (visible.isEmpty()) {
             Text(
-                "Nta kiganiro kirabikwa.",
+                if (query.isBlank()) "Nta kiganiro kirabikwa." else "Nta cabonetse.",
                 color = SoftText,
                 fontSize = 14.sp,
                 fontStyle = FontStyle.Italic
             )
         }
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            items(conversations, key = { it.id }) { c ->
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            items(visible, key = { it.id }) { c ->
                 val selected = c.id == currentId
                 val shape = RoundedCornerShape(14.dp)
                 Row(
@@ -454,12 +592,66 @@ fun DrawerContent(
                     )
                 }
             }
+            if (query.isBlank() && filtered.size > 6) {
+                item {
+                    Text(
+                        if (showAll) "Reba bike" else "Reba vyose",
+                        color = NeonBlue,
+                        fontSize = 14.sp,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { showAll = !showAll }
+                            .padding(horizontal = 14.dp, vertical = 10.dp)
+                    )
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Box(modifier = Modifier.fillMaxWidth().height(0.5.dp).background(BubbleBorder))
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .clip(CircleShape)
+                    .background(NeonBlue)
+                    .border(1.5.dp, Color(0xFF93C5FD), CircleShape)
+                    .clickable { onProfile() },
+                contentAlignment = Alignment.Center
+            ) {
+                val initial = userName.trim().take(1).uppercase()
+                if (initial.isEmpty()) {
+                    Icon(Icons.Filled.Person, contentDescription = "Konti", tint = Color.White)
+                } else {
+                    Text(
+                        initial,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.weight(1f))
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(NeonBlue)
+                    .clickable { onNew() }
+                    .padding(horizontal = 18.dp, vertical = 13.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Filled.Add, contentDescription = null, tint = Color.White)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Ikiganiro gishya", color = Color.White, fontWeight = FontWeight.Bold)
+            }
         }
     }
 }
 
 @Composable
-fun EmptyState(onPick: (String) -> Unit) {
+fun EmptyState(userName: String, onPick: (String) -> Unit) {
     val suggestions = listOf(
         "Mfasha kwandika ubutumwa",
         "Sobanura ikintu mu magambo make",
@@ -488,7 +680,8 @@ fun EmptyState(onPick: (String) -> Unit) {
         }
         Spacer(modifier = Modifier.height(8.dp))
         val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
-        val greeting = if (hour < 12) "Mwaramutse!" else "Mwiriwe!"
+        val hello = if (hour < 12) "Mwaramutse" else "Mwiriwe"
+        val greeting = if (userName.isBlank()) hello + "!" else hello + ", " + userName.trim() + "!"
         Text(greeting + " Nagufasha iki uyu munsi?", color = SoftText, fontSize = 16.sp)
         Spacer(modifier = Modifier.height(24.dp))
         suggestions.forEach { s ->
@@ -742,5 +935,20 @@ fun ErrorBanner(text: String, onRetry: () -> Unit, onClose: () -> Unit) {
             TextButton(onClick = onClose) { Text("Funga", color = SoftText) }
             TextButton(onClick = onRetry) { Text("Ongera ugerageze", color = NeonBlue) }
         }
+    }
+}
+
+object ProfileStore {
+    private const val PREFS = "yacunne_profile"
+    private const val KEY = "name"
+
+    fun load(context: android.content.Context): String {
+        return context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
+            .getString(KEY, "") ?: ""
+    }
+
+    fun save(context: android.content.Context, name: String) {
+        context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
+            .edit().putString(KEY, name).apply()
     }
 }
