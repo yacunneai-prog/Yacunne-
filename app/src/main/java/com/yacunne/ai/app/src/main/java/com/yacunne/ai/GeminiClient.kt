@@ -13,6 +13,11 @@ private var workingModel = "gemini-flash-latest"
 
 private val BACKUP_MODELS = emptyList<String>()
 
+// Hitamwo ubwenge bwa Yacunne: "pro" = bwinshi, ikindi cyose = bwihuta
+fun setPreferredModel(key: String) {
+    workingModel = if (key == "pro") "gemini-pro-latest" else "gemini-flash-latest"
+}
+
 private const val SYSTEM_TEXT =
     "You are Yacunne AI, a friendly AI assistant. " +
     "LANGUAGE: Always answer in the language the user writes in. " +
