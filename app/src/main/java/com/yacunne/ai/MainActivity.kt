@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
@@ -25,6 +26,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -32,7 +35,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -165,6 +170,13 @@ fun ChatScreen() {
     var editingProject by remember { mutableStateOf<Project?>(null) }
     var showProjectDialog by remember { mutableStateOf(false) }
     var showProfile by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
+    var settings by remember { mutableStateOf(SettingsStore.load(context)) }
+    val textSize = when (settings.fontSize) {
+        0 -> 14
+        2 -> 18
+        else -> 16
+    }
     var runId by remember { mutableStateOf(0) }
     var runningConv by remember { mutableStateOf("") }
 
@@ -277,7 +289,8 @@ fun ChatScreen() {
         val history = conv.messages
         val extra = buildExtra(
             conv.mode,
-            projects.firstOrNull { it.id == conv.projectId }?.instructions ?: ""
+            projects.firstOrNull { it.id == conv.projectId }?.instructions ?: "",
+            settings
         )
         job = scope.launch {
             val target = java.util.concurrent.atomic.AtomicReference("")
@@ -337,6 +350,7 @@ fun ChatScreen() {
         }
     }
 
+    Box(modifier = Modifier.fillMaxSize()) {
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
@@ -370,8 +384,10 @@ fun ChatScreen() {
                         editingProject = p
                         showProjectDialog = true
                     },
-                    userName = userName,
-                    onProfile = { showProfile = true },
+                    onSettings = {
+                        showSettings = true
+                        scope.launch { drawerState.close() }
+                    },
                     onStart = { mode ->
                         newChat()
                         newMode = mode
@@ -410,6 +426,7 @@ fun ChatScreen() {
                     ) {
                         items(messages) { message ->
                             MessageRow(
+                                textSize = textSize,
                                 message = message,
                                 onCopy = {
                                     clipboard.setText(AnnotatedString(it))
@@ -421,6 +438,7 @@ fun ChatScreen() {
                         if (live != null) {
                             item {
                                 MessageRow(
+                                    textSize = textSize,
                                     message = ChatMessage(live, false),
                                     onCopy = null
                                 )
@@ -597,6 +615,22 @@ fun ChatScreen() {
             }
         }
     }
+    if (showSettings) {
+        BackHandler { showSettings = false }
+        SettingsScreen(
+            settings = settings,
+            userName = userName,
+            onChange = { st ->
+                settings = st
+                SettingsStore.save(context, st)
+            },
+            onBack = { showSettings = false },
+            onEditName = { showProfile = true },
+            onClearAll = { showClearConfirm = true },
+            onAbout = { showAbout = true }
+        )
+    }
+    }
 }
 
 private fun modeTitle(mode: String): String = when (mode) {
@@ -627,8 +661,26 @@ private fun modeInstruction(mode: String): String = when (mode) {
     else -> ""
 }
 
-private fun buildExtra(mode: String, projectInstructions: String): String {
-    var t = modeInstruction(mode)
+private fun settingsInstruction(st: AppSettings): String {
+    var t = ""
+    when (st.answerLang) {
+        "rn" -> t += " Always answer in real Kirundi (not Kinyarwanda) unless the user asks for another language."
+        "en" -> t += " Always answer in English unless the user asks for another language."
+        "fr" -> t += " Always answer in French unless the user asks for another language."
+        "sw" -> t += " Always answer in Swahili unless the user asks for another language."
+    }
+    when (st.style) {
+        "short" -> t += " ANSWER LENGTH: keep answers short and to the point."
+        "long" -> t += " ANSWER LENGTH: give detailed and thorough answers."
+    }
+    if (st.custom.isNotBlank()) {
+        t += " THE USER'S OWN INSTRUCTIONS FOR ALL CHATS: " + st.custom.trim()
+    }
+    return t
+}
+
+private fun buildExtra(mode: String, projectInstructions: String, st: AppSettings): String {
+    var t = modeInstruction(mode) + settingsInstruction(st)
     if (projectInstructions.isNotBlank()) {
         t = t + " PROJECT INSTRUCTIONS FROM THE USER: " + projectInstructions.trim()
     }
@@ -705,8 +757,7 @@ fun DrawerContent(
     onSelectProject: (String) -> Unit,
     onNewProject: () -> Unit,
     onEditProject: (Project) -> Unit,
-    userName: String,
-    onProfile: () -> Unit,
+    onSettings: () -> Unit,
     onStart: (String) -> Unit
 ) {
     var searching by remember { mutableStateOf(false) }
@@ -998,46 +1049,21 @@ fun DrawerContent(
             }
         }
         Spacer(modifier = Modifier.height(8.dp))
-        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(DrawerLine))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 10.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .clickable { onProfile() }
-                .padding(6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             Box(
                 modifier = Modifier
-                    .size(46.dp)
+                    .size(52.dp)
                     .clip(CircleShape)
-                    .background(DrawerAccent),
+                    .background(DrawerAccent)
+                    .clickable { onSettings() },
                 contentAlignment = Alignment.Center
             ) {
-                val initial = userName.trim().take(1).uppercase()
-                if (initial.isEmpty()) {
-                    Icon(Icons.Filled.Person, contentDescription = "Konti", tint = Color.White)
-                } else {
-                    Text(
-                        initial,
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    if (userName.isBlank()) "Ongeraho izina ryawe" else userName,
-                    color = DrawerText,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                Icon(
+                    Icons.Filled.Settings,
+                    contentDescription = "Igenamiterere",
+                    tint = Color.White,
+                    modifier = Modifier.size(26.dp)
                 )
-                Text("Konti yawe", color = DrawerMuted, fontSize = 13.sp)
             }
         }
     }
@@ -1247,18 +1273,18 @@ fun ChatHeader(
 }
 
 @Composable
-fun MessageRow(message: ChatMessage, onCopy: ((String) -> Unit)?) {
+fun MessageRow(message: ChatMessage, onCopy: ((String) -> Unit)?, textSize: Int = 16) {
     if (message.fromUser) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.Top
         ) {
-            Bubble(message.text, true, Modifier.weight(1f, fill = false))
+            Bubble(message.text, true, textSize, Modifier.weight(1f, fill = false))
         }
     } else {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
-            Bubble(message.text, false)
+            Bubble(message.text, false, textSize)
             if (onCopy != null) {
                 Text(
                     "Copy",
@@ -1276,7 +1302,7 @@ fun MessageRow(message: ChatMessage, onCopy: ((String) -> Unit)?) {
 }
 
 @Composable
-fun Bubble(text: String, fromUser: Boolean, modifier: Modifier = Modifier) {
+fun Bubble(text: String, fromUser: Boolean, textSize: Int = 16, modifier: Modifier = Modifier) {
     if (fromUser) {
         val shape = RoundedCornerShape(20.dp)
         Box(
@@ -1286,7 +1312,7 @@ fun Bubble(text: String, fromUser: Boolean, modifier: Modifier = Modifier) {
                 .padding(horizontal = 14.dp, vertical = 10.dp)
         ) {
             SelectionContainer {
-                Text(text, color = Color(0xFFF1F2FF), fontSize = 16.sp)
+                Text(text, color = Color(0xFFF1F2FF), fontSize = textSize.sp)
             }
         }
     } else {
@@ -1295,8 +1321,8 @@ fun Bubble(text: String, fromUser: Boolean, modifier: Modifier = Modifier) {
                 Text(
                     text,
                     color = Color(0xFFE8EAF6),
-                    fontSize = 16.sp,
-                    lineHeight = 24.sp
+                    fontSize = textSize.sp,
+                    lineHeight = (textSize * 3 / 2).sp
                 )
             }
         }
@@ -1343,5 +1369,219 @@ object ProfileStore {
     fun save(context: android.content.Context, name: String) {
         context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
             .edit().putString(KEY, name).apply()
+    }
+}
+
+data class AppSettings(
+    val fontSize: Int = 1,
+    val answerLang: String = "auto",
+    val style: String = "normal",
+    val custom: String = ""
+)
+
+object SettingsStore {
+    private const val PREFS = "yacunne_settings"
+
+    fun load(context: android.content.Context): AppSettings {
+        val p = context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
+        return AppSettings(
+            p.getInt("fontSize", 1),
+            p.getString("answerLang", "auto") ?: "auto",
+            p.getString("style", "normal") ?: "normal",
+            p.getString("custom", "") ?: ""
+        )
+    }
+
+    fun save(context: android.content.Context, st: AppSettings) {
+        context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
+            .edit()
+            .putInt("fontSize", st.fontSize)
+            .putString("answerLang", st.answerLang)
+            .putString("style", st.style)
+            .putString("custom", st.custom)
+            .apply()
+    }
+}
+
+@Composable
+fun SectionTitle(text: String) {
+    Text(
+        text,
+        color = DrawerMuted,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier.padding(top = 22.dp, bottom = 8.dp, start = 4.dp)
+    )
+}
+
+@Composable
+fun SettingRow(title: String, value: String, titleColor: Color, onClick: (() -> Unit)?) {
+    val shape = RoundedCornerShape(14.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(Color.White)
+            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
+            .padding(horizontal = 16.dp, vertical = 14.dp)
+    ) {
+        Text(title, color = titleColor, fontSize = 16.sp)
+        if (value.isNotEmpty()) {
+            Text(value, color = DrawerMuted, fontSize = 13.sp)
+        }
+    }
+}
+
+@Composable
+fun SettingChip(label: String, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(if (selected) DrawerAccent else Color.White)
+            .clickable { onClick() }
+            .padding(vertical = 12.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            label,
+            color = if (selected) Color.White else DrawerText,
+            fontSize = 15.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+        )
+    }
+}
+
+@Composable
+fun SettingsScreen(
+    settings: AppSettings,
+    userName: String,
+    onChange: (AppSettings) -> Unit,
+    onBack: () -> Unit,
+    onEditName: () -> Unit,
+    onClearAll: () -> Unit,
+    onAbout: () -> Unit
+) {
+    var custom by remember { mutableStateOf(settings.custom) }
+    val langs = listOf(
+        "auto" to "Ruhuje n'ururimi nanditse",
+        "rn" to "Ikirundi",
+        "en" to "Icongereza",
+        "fr" to "Igifaransa",
+        "sw" to "Igiswahili"
+    )
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(DrawerBg)
+            .statusBarsPadding()
+            .navigationBarsPadding()
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "Garuka",
+                tint = DrawerText,
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .clickable { onBack() }
+                    .padding(10.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                "Igenamiterere",
+                color = DrawerText,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.ExtraBold
+            )
+        }
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 24.dp)
+        ) {
+            SectionTitle("Konti")
+            SettingRow(
+                "Izina ryawe",
+                if (userName.isBlank()) "Nta ryashyizweho. Kanda ugirishyireho." else userName,
+                DrawerText
+            ) { onEditName() }
+
+            SectionTitle("Isura")
+            Text("Ingano y'inyuguti", color = DrawerText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SettingChip("Nto", settings.fontSize == 0, Modifier.weight(1f)) { onChange(settings.copy(fontSize = 0)) }
+                SettingChip("Hagati", settings.fontSize == 1, Modifier.weight(1f)) { onChange(settings.copy(fontSize = 1)) }
+                SettingChip("Nini", settings.fontSize == 2, Modifier.weight(1f)) { onChange(settings.copy(fontSize = 2)) }
+            }
+
+            SectionTitle("Uko Yacunne isubiza")
+            Text("Uburyo bwo gusubiza", color = DrawerText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SettingChip("Ngufi", settings.style == "short", Modifier.weight(1f)) { onChange(settings.copy(style = "short")) }
+                SettingChip("Isanzwe", settings.style == "normal", Modifier.weight(1f)) { onChange(settings.copy(style = "normal")) }
+                SettingChip("Irambuye", settings.style == "long", Modifier.weight(1f)) { onChange(settings.copy(style = "long")) }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("Ururimi rw'ibisubizo", color = DrawerText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
+            langs.forEach { (key, label) ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 6.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(if (settings.answerLang == key) DrawerSel else Color.White)
+                        .clickable { onChange(settings.copy(answerLang = key)) }
+                        .padding(horizontal = 16.dp, vertical = 13.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(label, color = DrawerText, fontSize = 16.sp, modifier = Modifier.weight(1f))
+                    if (settings.answerLang == key) {
+                        Icon(Icons.Filled.Check, contentDescription = null, tint = DrawerAccent)
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            Text("Amabwiriza yanjye (kuri ibiganiro vyose)", color = DrawerText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
+            TextField(
+                value = custom,
+                onValueChange = {
+                    custom = it.take(500)
+                    onChange(settings.copy(custom = custom))
+                },
+                modifier = Modifier.fillMaxWidth(),
+                maxLines = 6,
+                shape = RoundedCornerShape(14.dp),
+                placeholder = { Text("Urugero: Nitwa Yacu, ndi umushoferi wa Uber muri Afurika y'Epfo.", color = DrawerMuted) },
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color.White,
+                    unfocusedContainerColor = Color.White,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    focusedTextColor = DrawerText,
+                    unfocusedTextColor = DrawerText,
+                    cursorColor = DrawerAccent
+                )
+            )
+
+            SectionTitle("Ibiganiro")
+            SettingRow("Siba amateka yose", "Ibiganiro vyose bizosibwa kuri iyi telefone.", Color(0xFFDC2626)) { onClearAll() }
+
+            SectionTitle("Guhuza n'izindi app")
+            SettingRow(
+                "Google Calendar, Gmail, Drive, WhatsApp",
+                "Biraza vuba. Bisaba seriveri n'uruhushya rw'izo app, nta bwo bishoboka muri iyi verisiyo.",
+                DrawerMuted,
+                null
+            )
+
+            SectionTitle("Ibijyanye na Yacunne")
+            SettingRow("Yacunne AI", "Verisiyo 1.0. Soma amakuru ya app.", DrawerText) { onAbout() }
+        }
     }
 }
