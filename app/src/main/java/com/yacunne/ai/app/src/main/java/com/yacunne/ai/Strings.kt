@@ -52,6 +52,7 @@ fun tx(key: String): String {
 }
 
 private val EN: Map<String, String> = mapOf(
+    "sec_account" to "Account", "login_title" to "Sign in (login)", "login_sub" to "Coming soon. It will save your chats on a server and let you use them on other phones.", "name_unset" to "Not set. Tap to set it.", "back" to "Back",
     "ok" to "OK", "cancel" to "Cancel", "save" to "Save", "close" to "Close",
     "retry" to "Try again", "delete" to "Delete", "edit" to "Edit",
     "no_chat" to "No chat yet", "copied" to "Copied", "copy" to "Copy",
@@ -106,6 +107,7 @@ private val EN: Map<String, String> = mapOf(
 )
 
 private val RN: Map<String, String> = mapOf(
+    "sec_account" to "Konti", "login_title" to "Kwinjira (login)", "login_sub" to "Biraza vuba. Bizobika ibiganiro vyawe kuri seriveri kandi bikwemerere kubikoresha kuri telefone zindi.", "name_unset" to "Nta ryashyizweho. Kanda ugire ushireho izina.", "back" to "Garuka",
     "ok" to "Sawa", "cancel" to "Reka", "save" to "Bika", "close" to "Funga",
     "retry" to "Ongera ugerageze", "delete" to "Siba", "edit" to "Hindura",
     "no_chat" to "Nta kiganiro kiriho", "copied" to "Vyakoporowe", "copy" to "Copy",
@@ -161,6 +163,7 @@ private val RN: Map<String, String> = mapOf(
 )
 
 private val RW: Map<String, String> = mapOf(
+    "sec_account" to "Konti", "login_title" to "Kwinjira (login)", "login_sub" to "Bizaza vuba. Bizabika ibiganiro byawe kuri seriveri kandi bigufashe kubikoresha kuri telefone zindi.", "name_unset" to "Nta ryashyizweho. Kanda ushyireho izina.", "back" to "Garuka",
     "ok" to "Sawa", "cancel" to "Bireke", "save" to "Bika", "close" to "Funga",
     "retry" to "Ongera ugerageze", "delete" to "Siba", "edit" to "Hindura",
     "no_chat" to "Nta kiganiro kirimo", "copied" to "Byakoporowe", "copy" to "Koporora",
@@ -216,6 +219,7 @@ private val RW: Map<String, String> = mapOf(
 )
 
 private val FR: Map<String, String> = mapOf(
+    "sec_account" to "Compte", "login_title" to "Connexion (login)", "login_sub" to "Bientôt disponible. Vos discussions seront sauvegardées sur un serveur et utilisables sur d'autres téléphones.", "name_unset" to "Non défini. Touchez pour le définir.", "back" to "Retour",
     "ok" to "OK", "cancel" to "Annuler", "save" to "Enregistrer", "close" to "Fermer",
     "retry" to "Réessayer", "delete" to "Supprimer", "edit" to "Modifier",
     "no_chat" to "Aucune discussion", "copied" to "Copié", "copy" to "Copier",
@@ -270,6 +274,7 @@ private val FR: Map<String, String> = mapOf(
 )
 
 private val SW: Map<String, String> = mapOf(
+    "sec_account" to "Akaunti", "login_title" to "Kuingia (login)", "login_sub" to "Inakuja hivi karibuni. Itahifadhi mazungumzo yako kwenye seva na kukuruhusu kuyatumia kwenye simu nyingine.", "name_unset" to "Haijawekwa. Gusa kuiweka.", "back" to "Rudi",
     "ok" to "Sawa", "cancel" to "Ghairi", "save" to "Hifadhi", "close" to "Funga",
     "retry" to "Jaribu tena", "delete" to "Futa", "edit" to "Hariri",
     "no_chat" to "Hakuna mazungumzo bado", "copied" to "Imenakiliwa", "copy" to "Nakili",
