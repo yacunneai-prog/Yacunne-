@@ -190,6 +190,7 @@ class MainActivity : ComponentActivity() {
             statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
         )
+        UiLang.current = resolveUiLang(SettingsStore.load(this).uiLang)
         setContent {
             MaterialTheme(colorScheme = NeonColors) {
                 ChatScreen()
@@ -341,34 +342,34 @@ fun ChatScreen() {
 
     fun shareChat() {
         if (messages.isEmpty()) {
-            android.widget.Toast.makeText(context, "Nta kiganiro kiriho", android.widget.Toast.LENGTH_SHORT).show()
+            android.widget.Toast.makeText(context, tx("no_chat"), android.widget.Toast.LENGTH_SHORT).show()
             return
         }
         val body = messages.joinToString("\n\n") {
-            (if (it.fromUser) "Wowe: " else "Yacunne AI: ") + it.text
+            (if (it.fromUser) tx("you") + ": " else "Yacunne AI: ") + it.text
         }
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
             putExtra(Intent.EXTRA_TEXT, body)
         }
-        context.startActivity(Intent.createChooser(intent, "Sangiza ikiganiro"))
+        context.startActivity(Intent.createChooser(intent, tx("share_chat")))
     }
 
     fun shareAll() {
         if (conversations.isEmpty()) {
-            android.widget.Toast.makeText(context, "Nta kiganiro kiriho", android.widget.Toast.LENGTH_SHORT).show()
+            android.widget.Toast.makeText(context, tx("no_chat"), android.widget.Toast.LENGTH_SHORT).show()
             return
         }
         val body = conversations.joinToString("\n\n-----\n\n") { c ->
             c.title + "\n\n" + c.messages.joinToString("\n\n") {
-                (if (it.fromUser) "Wowe: " else "Yacunne AI: ") + it.text
+                (if (it.fromUser) tx("you") + ": " else "Yacunne AI: ") + it.text
             }
         }
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
             putExtra(Intent.EXTRA_TEXT, body)
         }
-        context.startActivity(Intent.createChooser(intent, "Sohora ibiganiro"))
+        context.startActivity(Intent.createChooser(intent, tx("export_chats")))
     }
 
     fun ask(convId: String) {
@@ -414,7 +415,7 @@ fun ChatScreen() {
             if (myRun != runId) return@launch
             val full = result.get()
             if (isErrorReply(full)) {
-                errorMsg = full
+                errorMsg = friendlyError(full)
                 streaming = null
                 loading = false
                 job = null
@@ -545,7 +546,7 @@ fun ChatScreen() {
                                                 clipboard.setText(AnnotatedString(it))
                                                 android.widget.Toast.makeText(
                                                     context,
-                                                    "Vyakoporowe",
+                                                    tx("copied"),
                                                     android.widget.Toast.LENGTH_SHORT
                                                 ).show()
                                             },
@@ -588,13 +589,12 @@ fun ChatScreen() {
                             AlertDialog(
                                 onDismissRequest = { showAbout = false },
                                 confirmButton = {
-                                    TextButton(onClick = { showAbout = false }) { Text("Sawa") }
+                                    TextButton(onClick = { showAbout = false }) { Text(tx("ok")) }
                                 },
                                 title = { Text("Yacunne AI") },
                                 text = {
                                     Text(
-                                        "Umufasha wawe wa AI. Ibiganiro byawe bibikwa kuri telefone yawe. " +
-                                            "Ubutumwa bwawe bwoherezwa kuri Google Gemini kugira ngo butange ibisubizo."
+                                        tx("about_text")
                                     )
                                 }
                             )
@@ -609,21 +609,21 @@ fun ChatScreen() {
                                         ProfileStore.save(context, n)
                                         userName = n
                                         showProfile = false
-                                    }) { Text("Bika") }
+                                    }) { Text(tx("save")) }
                                 },
                                 dismissButton = {
-                                    TextButton(onClick = { showProfile = false }) { Text("Reka") }
+                                    TextButton(onClick = { showProfile = false }) { Text(tx("cancel")) }
                                 },
-                                title = { Text("Konti yawe") },
+                                title = { Text(tx("profile_title")) },
                                 text = {
                                     Column {
-                                        Text("Andika izina ryawe. Yacunne izaryifashisha mu kuganira nawe.")
+                                        Text(tx("profile_text"))
                                         Spacer(modifier = Modifier.height(12.dp))
                                         TextField(
                                             value = draft,
                                             onValueChange = { draft = it },
                                             singleLine = true,
-                                            placeholder = { Text("Izina ryawe") }
+                                            placeholder = { Text(tx("profile_name_hint")) }
                                         )
                                     }
                                 }
@@ -649,26 +649,26 @@ fun ChatScreen() {
                                             ProjectStore.save(context, projects.toList())
                                             showProjectDialog = false
                                         }
-                                    }) { Text("Bika") }
+                                    }) { Text(tx("save")) }
                                 },
                                 dismissButton = {
-                                    TextButton(onClick = { showProjectDialog = false }) { Text("Reka") }
+                                    TextButton(onClick = { showProjectDialog = false }) { Text(tx("cancel")) }
                                 },
-                                title = { Text(if (editing == null) "Umushinga mushasha" else "Hindura umushinga") },
+                                title = { Text(if (editing == null) tx("project_new") else tx("project_edit")) },
                                 text = {
                                     Column {
                                         TextField(
                                             value = nameDraft,
                                             onValueChange = { nameDraft = it },
                                             singleLine = true,
-                                            placeholder = { Text("Izina ry'umushinga") }
+                                            placeholder = { Text(tx("project_name_hint")) }
                                         )
                                         Spacer(modifier = Modifier.height(10.dp))
                                         TextField(
                                             value = instrDraft,
                                             onValueChange = { instrDraft = it },
                                             maxLines = 5,
-                                            placeholder = { Text("Amabwiriza ya Yacunne kuri uyu mushinga (si ngombwa)") }
+                                            placeholder = { Text(tx("project_instr_hint")) }
                                         )
                                         if (editing != null) {
                                             TextButton(onClick = {
@@ -682,7 +682,7 @@ fun ChatScreen() {
                                                 ProjectStore.save(context, projects.toList())
                                                 persist()
                                                 showProjectDialog = false
-                                            }) { Text("Siba umushinga", color = Color(0xFFFF8A8A)) }
+                                            }) { Text(tx("project_delete"), color = Color(0xFFFF8A8A)) }
                                         }
                                     }
                                 }
@@ -700,12 +700,12 @@ fun ChatScreen() {
                                         val t = titleDraft.trim().take(40)
                                         if (t.isNotEmpty()) renameConv(rid, t)
                                         renameId = null
-                                    }) { Text("Bika") }
+                                    }) { Text(tx("save")) }
                                 },
                                 dismissButton = {
-                                    TextButton(onClick = { renameId = null }) { Text("Reka") }
+                                    TextButton(onClick = { renameId = null }) { Text(tx("cancel")) }
                                 },
-                                title = { Text("Hindura izina ry'ikiganiro") },
+                                title = { Text(tx("rename_title")) },
                                 text = {
                                     TextField(
                                         value = titleDraft,
@@ -722,13 +722,13 @@ fun ChatScreen() {
                                     TextButton(onClick = {
                                         showClearConfirm = false
                                         clearAll()
-                                    }) { Text("Siba byose") }
+                                    }) { Text(tx("clear_confirm")) }
                                 },
                                 dismissButton = {
-                                    TextButton(onClick = { showClearConfirm = false }) { Text("Reka") }
+                                    TextButton(onClick = { showClearConfirm = false }) { Text(tx("cancel")) }
                                 },
-                                title = { Text("Gusiba amateka yose?") },
-                                text = { Text("Ibiganiro byose bizasibwa kandi ntibishobora kugarurwa.") }
+                                title = { Text(tx("clear_title")) },
+                                text = { Text(tx("clear_text")) }
                             )
                         }
                     }
@@ -739,6 +739,7 @@ fun ChatScreen() {
                         settings = settings,
                         userName = userName,
                         onChange = { st ->
+                            if (st.uiLang != settings.uiLang) UiLang.current = resolveUiLang(st.uiLang)
                             settings = st
                             SettingsStore.save(context, st)
                         },
@@ -755,18 +756,18 @@ fun ChatScreen() {
 }
 
 private fun modeTitle(mode: String): String = when (mode) {
-    "learn" -> "Kwiga"
-    "write" -> "Kwandika"
-    "plan" -> "Gutegura"
-    "translate" -> "Guhindura"
+    "learn" -> tx("mode_learn")
+    "write" -> tx("mode_write")
+    "plan" -> tx("mode_plan")
+    "translate" -> tx("mode_translate")
     else -> ""
 }
 
 private fun modePrompt(mode: String): String = when (mode) {
-    "learn" -> "Ndashaka kwiga. Mbaza ikintu nshaka kwiga hanyuma unyigishe buhoro buhoro."
-    "write" -> "Ndashaka ko umfasha kwandika ubutumwa. Mbaza uwo ndandikira n'ico nshaka kuvuga."
-    "plan" -> "Ndashaka igitekerezo c'umushinga. Mbaza ibibazo bike hanyuma umpe ibitekerezo."
-    "translate" -> "Ndashaka ko umfasha guhindura amagambo mu zindi ndimi. Mbaza ururimi n'amagambo."
+    "learn" -> tx("prompt_learn")
+    "write" -> tx("prompt_write")
+    "plan" -> tx("prompt_plan")
+    "translate" -> tx("prompt_translate")
     else -> ""
 }
 
@@ -784,11 +785,13 @@ private fun modeInstruction(mode: String): String = when (mode) {
 
 private fun settingsInstruction(st: AppSettings): String {
     var t = ""
-    when (st.answerLang) {
-        "rn" -> t += " Always answer in real Kirundi (not Kinyarwanda) unless the user asks for another language."
-        "en" -> t += " Always answer in English unless the user asks for another language."
-        "fr" -> t += " Always answer in French unless the user asks for another language."
-        "sw" -> t += " Always answer in Swahili unless the user asks for another language."
+    val lang = ANSWER_LANGS.firstOrNull { it.code == st.answerLang }
+    if (lang != null) {
+        t += when (lang.code) {
+            "rn" -> " Always answer in real Kirundi (the language of Burundi, not Kinyarwanda) unless the user asks for another language."
+            "rw" -> " Always answer in Kinyarwanda (not Kirundi) unless the user asks for another language."
+            else -> " Always answer in " + lang.english + " unless the user asks for another language."
+        }
     }
     when (st.style) {
         "short" -> t += " ANSWER LENGTH: keep answers short and to the point."
@@ -925,7 +928,7 @@ fun DrawerContent(
                     onValueChange = { query = it },
                     modifier = Modifier.weight(1f),
                     singleLine = true,
-                    placeholder = { Text("Shakisha ibiganiro", color = P.panelMuted) },
+                    placeholder = { Text(tx("search_hint"), color = P.panelMuted) },
                     shape = RoundedCornerShape(16.dp),
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = P.panelCard,
@@ -939,7 +942,7 @@ fun DrawerContent(
                 )
                 Icon(
                     Icons.Filled.Close,
-                    contentDescription = "Funga",
+                    contentDescription = tx("close"),
                     tint = P.panelText,
                     modifier = Modifier
                         .size(44.dp)
@@ -962,7 +965,7 @@ fun DrawerContent(
                 )
                 Icon(
                     Icons.Filled.Search,
-                    contentDescription = "Shakisha",
+                    contentDescription = tx("search"),
                     tint = P.panelText,
                     modifier = Modifier
                         .size(44.dp)
@@ -973,7 +976,7 @@ fun DrawerContent(
                 Spacer(modifier = Modifier.width(6.dp))
                 Icon(
                     Icons.Filled.Edit,
-                    contentDescription = "Ikiganiro gishya",
+                    contentDescription = tx("new_chat"),
                     tint = Color.White,
                     modifier = Modifier
                         .size(44.dp)
@@ -987,7 +990,7 @@ fun DrawerContent(
         Spacer(modifier = Modifier.height(10.dp))
 
         DrawerRow(
-            Icons.Filled.Home, "Imishinga", P.accent, activeProjectId.isNotEmpty(),
+            Icons.Filled.Home, tx("projects"), P.accent, activeProjectId.isNotEmpty(),
             if (projectsOpen) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown
         ) { projectsOpen = !projectsOpen }
         if (projectsOpen) {
@@ -995,7 +998,7 @@ fun DrawerContent(
                 DrawerSubRow(p.name, p.id == activeProjectId, { onSelectProject(p.id) }) {
                     Icon(
                         Icons.Filled.Edit,
-                        contentDescription = "Hindura",
+                        contentDescription = tx("edit"),
                         tint = P.panelMuted,
                         modifier = Modifier
                             .size(36.dp)
@@ -1006,7 +1009,7 @@ fun DrawerContent(
                 }
             }
             Text(
-                "+ Umushinga mushasha",
+                tx("project_add"),
                 color = P.accent,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
@@ -1018,23 +1021,23 @@ fun DrawerContent(
             )
         }
         DrawerRow(
-            Icons.Filled.Star, "Ibyo nkunda", Color(0xFFD97706), onlyStarred, null
+            Icons.Filled.Star, tx("favorites"), Color(0xFFD97706), onlyStarred, null
         ) { onlyStarred = !onlyStarred }
         DrawerRow(
-            Icons.Filled.Settings, "Uburyo", Color(0xFF059669), false,
+            Icons.Filled.Settings, tx("modes"), Color(0xFF059669), false,
             if (modesOpen) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown
         ) { modesOpen = !modesOpen }
         if (modesOpen) {
-            DrawerSubRow("Kwiga", false, { onStart("learn") }) {
+            DrawerSubRow(tx("mode_learn"), false, { onStart("learn") }) {
                 Icon(Icons.Filled.Info, null, tint = Color(0xFF2563EB), modifier = Modifier.size(20.dp))
             }
-            DrawerSubRow("Kwandika", false, { onStart("write") }) {
+            DrawerSubRow(tx("mode_write"), false, { onStart("write") }) {
                 Icon(Icons.Filled.Create, null, tint = Color(0xFF059669), modifier = Modifier.size(20.dp))
             }
-            DrawerSubRow("Gutegura", false, { onStart("plan") }) {
+            DrawerSubRow(tx("mode_plan"), false, { onStart("plan") }) {
                 Icon(Icons.Filled.Build, null, tint = Color(0xFFD97706), modifier = Modifier.size(20.dp))
             }
-            DrawerSubRow("Guhindura", false, { onStart("translate") }) {
+            DrawerSubRow(tx("mode_translate"), false, { onStart("translate") }) {
                 Icon(Icons.Filled.Refresh, null, tint = Color(0xFFDB2777), modifier = Modifier.size(20.dp))
             }
         }
@@ -1052,7 +1055,7 @@ fun DrawerContent(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "Umushinga: " + activeProject.name,
+                    tx("project_label") + activeProject.name,
                     color = P.panelText,
                     fontSize = 13.sp,
                     maxLines = 1,
@@ -1064,11 +1067,11 @@ fun DrawerContent(
             }
             Spacer(modifier = Modifier.height(8.dp))
         }
-        Text("Amateka", color = P.panelMuted, fontSize = 13.sp)
+        Text(tx("history"), color = P.panelMuted, fontSize = 13.sp)
         Spacer(modifier = Modifier.height(6.dp))
         if (visible.isEmpty()) {
             Text(
-                if (query.isBlank()) "Nta kiganiro kirabikwa." else "Nta cabonetse.",
+                if (query.isBlank()) tx("no_chats") else tx("no_results"),
                 color = P.panelMuted,
                 fontSize = 14.sp,
                 fontStyle = FontStyle.Italic
@@ -1109,7 +1112,7 @@ fun DrawerContent(
                     Box {
                         Icon(
                             Icons.Filled.MoreVert,
-                            contentDescription = "Ibindi",
+                            contentDescription = tx("more"),
                             tint = P.panelMuted,
                             modifier = Modifier
                                 .size(40.dp)
@@ -1123,7 +1126,7 @@ fun DrawerContent(
                         ) {
                             DropdownMenuItem(
                                 text = {
-                                    Text(if (c.starred) "Vana mu byo nkunda" else "Shira mu byo nkunda")
+                                    Text(if (c.starred) tx("unstar") else tx("star"))
                                 },
                                 onClick = {
                                     menuFor = ""
@@ -1131,7 +1134,7 @@ fun DrawerContent(
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("Hindura izina") },
+                                text = { Text(tx("rename")) },
                                 onClick = {
                                     menuFor = ""
                                     onRename(c.id)
@@ -1139,7 +1142,7 @@ fun DrawerContent(
                             )
                             projects.forEach { p ->
                                 DropdownMenuItem(
-                                    text = { Text("Shira muri " + p.name) },
+                                    text = { Text(tx("move_to") + " " + p.name) },
                                     onClick = {
                                         menuFor = ""
                                         onMove(c.id, p.id)
@@ -1148,7 +1151,7 @@ fun DrawerContent(
                             }
                             if (c.projectId.isNotEmpty()) {
                                 DropdownMenuItem(
-                                    text = { Text("Vana mu mushinga") },
+                                    text = { Text(tx("remove_from_project")) },
                                     onClick = {
                                         menuFor = ""
                                         onMove(c.id, "")
@@ -1156,7 +1159,7 @@ fun DrawerContent(
                                 )
                             }
                             DropdownMenuItem(
-                                text = { Text("Siba") },
+                                text = { Text(tx("delete")) },
                                 onClick = {
                                     menuFor = ""
                                     onDelete(c.id)
@@ -1169,7 +1172,7 @@ fun DrawerContent(
             if (query.isBlank() && !onlyStarred && sorted.size > 8) {
                 item {
                     Text(
-                        if (showAll) "Reba bike" else "Reba vyose",
+                        if (showAll) tx("show_less") else tx("show_all"),
                         color = P.accent,
                         fontSize = 14.sp,
                         modifier = Modifier
@@ -1192,7 +1195,7 @@ fun DrawerContent(
             ) {
                 Icon(
                     Icons.Filled.Settings,
-                    contentDescription = "Igenamiterere",
+                    contentDescription = tx("settings"),
                     tint = Color.White,
                     modifier = Modifier.size(26.dp)
                 )
@@ -1204,10 +1207,10 @@ fun DrawerContent(
 @Composable
 fun EmptyState(userName: String, onPick: (String) -> Unit) {
     val suggestions = listOf(
-        "Mfasha kwandika ubutumwa",
-        "Sobanura ikintu mu magambo make",
-        "Mpa igitekerezo cy'umushinga",
-        "Ndashaka kwiga Icongereza"
+        tx("sug1"),
+        tx("sug2"),
+        tx("sug3"),
+        tx("sug4")
     )
     val shape = RoundedCornerShape(18.dp)
     val P = LocalPal.current
@@ -1232,9 +1235,9 @@ fun EmptyState(userName: String, onPick: (String) -> Unit) {
         }
         Spacer(modifier = Modifier.height(8.dp))
         val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
-        val hello = if (hour < 12) "Mwaramutse" else "Mwiriwe"
+        val hello = if (hour < 12) tx("good_morning") else tx("good_evening")
         val greeting = if (userName.isBlank()) hello + "!" else hello + ", " + userName.trim() + "!"
-        Text(greeting + " Nagufasha iki uyu munsi?", color = P.soft, fontSize = 16.sp)
+        Text(greeting + " " + tx("ask_help"), color = P.soft, fontSize = 16.sp)
         Spacer(modifier = Modifier.height(24.dp))
         suggestions.forEach { s ->
             Box(
@@ -1280,7 +1283,7 @@ fun InputBar(
             maxLines = 4,
             placeholder = {
                 Text(
-                    "Andika hano...",
+                    tx("type_here"),
                     color = P.placeholder
                 )
             },
@@ -1312,7 +1315,7 @@ fun InputBar(
             } else {
                 Icon(
                     Icons.AutoMirrored.Filled.Send,
-                    contentDescription = "Ohereza",
+                    contentDescription = tx("send"),
                     tint = Color.White
                 )
             }
@@ -1338,7 +1341,7 @@ fun ChatHeader(
         ) {
             Icon(
                 Icons.Filled.Menu,
-                contentDescription = "Amateka",
+                contentDescription = tx("history"),
                 tint = P.text,
                 modifier = Modifier
                     .size(36.dp)
@@ -1349,7 +1352,7 @@ fun ChatHeader(
             Spacer(modifier = Modifier.weight(1f))
             Icon(
                 Icons.Filled.Edit,
-                contentDescription = "Ikiganiro gishya",
+                contentDescription = tx("new_chat"),
                 tint = P.text,
                 modifier = Modifier
                     .size(36.dp)
@@ -1360,7 +1363,7 @@ fun ChatHeader(
             Box {
                 Icon(
                     Icons.Filled.MoreVert,
-                    contentDescription = "Igenamiterere",
+                    contentDescription = tx("settings"),
                     tint = P.text,
                     modifier = Modifier
                         .size(36.dp)
@@ -1374,28 +1377,28 @@ fun ChatHeader(
                     modifier = Modifier.background(P.card)
                 ) {
                     DropdownMenuItem(
-                        text = { Text("Sangiza ikiganiro", color = P.text) },
+                        text = { Text(tx("share_chat"), color = P.text) },
                         onClick = {
                             menuOpen = false
                             onShare()
                         }
                     )
                     DropdownMenuItem(
-                        text = { Text("Siba ikiganiro", color = P.text) },
+                        text = { Text(tx("menu_delete"), color = P.text) },
                         onClick = {
                             menuOpen = false
                             onDeleteChat()
                         }
                     )
                     DropdownMenuItem(
-                        text = { Text("Siba amateka yose", color = P.text) },
+                        text = { Text(tx("menu_clear"), color = P.text) },
                         onClick = {
                             menuOpen = false
                             onClearAll()
                         }
                     )
                     DropdownMenuItem(
-                        text = { Text("Ibijyanye na app", color = P.text) },
+                        text = { Text(tx("menu_about"), color = P.text) },
                         onClick = {
                             menuOpen = false
                             onAbout()
@@ -1429,7 +1432,7 @@ fun MessageRow(
             if (onCopy != null) {
                 Row(modifier = Modifier.padding(top = 2.dp)) {
                     Text(
-                        "Copy",
+                        tx("copy"),
                         color = P.soft,
                         fontSize = 12.sp,
                         modifier = Modifier
@@ -1440,7 +1443,7 @@ fun MessageRow(
                     if (onRegenerate != null) {
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(
-                            "Ongera usubize",
+                            tx("regenerate"),
                             color = P.soft,
                             fontSize = 12.sp,
                             modifier = Modifier
@@ -1484,6 +1487,13 @@ fun Bubble(text: String, fromUser: Boolean, textSize: Int = 16, modifier: Modifi
     }
 }
 
+private fun friendlyError(t: String): String = when {
+    t.startsWith("Internet ntikora") -> tx("err_network")
+    t.startsWith("Limit ya Gemini") -> tx("err_quota")
+    t.startsWith("Gemini ntiyashoboye") -> tx("err_empty")
+    else -> t
+}
+
 private fun isErrorReply(text: String): Boolean {
     return text.startsWith("Ikosa ") ||
         text.startsWith("Internet ntikora") ||
@@ -1506,8 +1516,8 @@ fun ErrorBanner(text: String, onRetry: () -> Unit, onClose: () -> Unit) {
     ) {
         Text(text, color = Color(0xFFFFB4C2), fontSize = 14.sp, maxLines = 4)
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            TextButton(onClick = onClose) { Text("Funga", color = SoftText) }
-            TextButton(onClick = onRetry) { Text("Ongera ugerageze", color = NeonBlue) }
+            TextButton(onClick = onClose) { Text(tx("close"), color = SoftText) }
+            TextButton(onClick = onRetry) { Text(tx("retry"), color = NeonBlue) }
         }
     }
 }
@@ -1533,7 +1543,8 @@ data class AppSettings(
     val style: String = "normal",
     val custom: String = "",
     val theme: String = "dark",
-    val model: String = "fast"
+    val model: String = "fast",
+    val uiLang: String = "rn"
 )
 
 object SettingsStore {
@@ -1547,7 +1558,8 @@ object SettingsStore {
             p.getString("style", "normal") ?: "normal",
             p.getString("custom", "") ?: "",
             p.getString("theme", "dark") ?: "dark",
-            p.getString("model", "fast") ?: "fast"
+            p.getString("model", "fast") ?: "fast",
+            p.getString("uiLang", "rn") ?: "rn"
         )
     }
 
@@ -1560,6 +1572,7 @@ object SettingsStore {
             .putString("custom", st.custom)
             .putString("theme", st.theme)
             .putString("model", st.model)
+            .putString("uiLang", st.uiLang)
             .apply()
     }
 }
@@ -1616,6 +1629,61 @@ fun SettingChip(label: String, selected: Boolean, modifier: Modifier, onClick: (
 }
 
 @Composable
+fun LangPicker(
+    title: String,
+    currentLabel: String,
+    open: Boolean,
+    onToggle: () -> Unit,
+    options: List<Pair<String, String>>,
+    selected: String,
+    onPick: (String) -> Unit
+) {
+    val P = LocalPal.current
+    Text(
+        title,
+        color = P.panelText,
+        fontSize = 15.sp,
+        modifier = Modifier.padding(bottom = 8.dp, start = 4.dp)
+    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(P.panelCard)
+            .clickable { onToggle() }
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(currentLabel, color = P.panelText, fontSize = 16.sp, modifier = Modifier.weight(1f))
+        Icon(
+            if (open) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+            contentDescription = null,
+            tint = P.panelMuted
+        )
+    }
+    if (open) {
+        Spacer(modifier = Modifier.height(6.dp))
+        options.forEach { (key, label) ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 6.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(if (selected == key) P.panelSel else P.panelCard)
+                    .clickable { onPick(key) }
+                    .padding(horizontal = 16.dp, vertical = 13.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(label, color = P.panelText, fontSize = 16.sp, modifier = Modifier.weight(1f))
+                if (selected == key) {
+                    Icon(Icons.Filled.Check, contentDescription = null, tint = P.accent)
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun SettingsScreen(
     settings: AppSettings,
     userName: String,
@@ -1628,13 +1696,14 @@ fun SettingsScreen(
 ) {
     val P = LocalPal.current
     var custom by remember { mutableStateOf(settings.custom) }
-    val langs = listOf(
-        "auto" to "Ruhuje n'ururimi nanditse",
-        "rn" to "Ikirundi",
-        "en" to "Icongereza",
-        "fr" to "Igifaransa",
-        "sw" to "Igiswahili"
-    )
+    var uiLangOpen by remember { mutableStateOf(false) }
+    var ansLangOpen by remember { mutableStateOf(false) }
+    val uiOptions = listOf("auto" to tx("lang_auto")) + UI_LANGS
+    val ansOptions = listOf("auto" to tx("answer_lang_auto")) + ANSWER_LANGS.map {
+        it.code to (if (it.native == it.english) it.native else it.native + " (" + it.english + ")")
+    }
+    val uiLabel = uiOptions.firstOrNull { it.first == settings.uiLang }?.second ?: tx("lang_auto")
+    val ansLabel = ansOptions.firstOrNull { it.first == settings.answerLang }?.second ?: tx("answer_lang_auto")
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1648,7 +1717,7 @@ fun SettingsScreen(
         ) {
             Icon(
                 Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "Garuka",
+                contentDescription = tx("back"),
                 tint = P.panelText,
                 modifier = Modifier
                     .size(44.dp)
@@ -1658,7 +1727,7 @@ fun SettingsScreen(
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                "Igenamiterere",
+                tx("settings"),
                 color = P.panelText,
                 fontSize = 22.sp,
                 fontWeight = FontWeight.ExtraBold
@@ -1671,37 +1740,41 @@ fun SettingsScreen(
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 24.dp)
         ) {
-            SectionTitle("Konti")
+            SectionTitle(tx("sec_account"))
             SettingRow(
-                "Izina ryawe",
-                if (userName.isBlank()) "Nta ryashyizweho. Kanda ugirishyireho." else userName,
+                tx("profile_name_hint"),
+                if (userName.isBlank()) tx("name_unset") else userName,
                 P.panelText
             ) { onEditName() }
             Spacer(modifier = Modifier.height(8.dp))
-            SettingRow(
-                "Kwinjira (login)",
-                "Biraza vuba. Bizakwemerera kubika ibiganiro byawe kuri seriveri no kubikoresha kuri telefone zindi.",
-                P.panelMuted,
-                null
-            )
+            SettingRow(tx("login_title"), tx("login_sub"), P.panelMuted, null)
 
-            SectionTitle("Isura")
-            Text("Ibara rya app", color = P.panelText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
+            SectionTitle(tx("sec_language"))
+            LangPicker(
+                tx("app_language"), uiLabel, uiLangOpen,
+                { uiLangOpen = !uiLangOpen }, uiOptions, settings.uiLang
+            ) {
+                onChange(settings.copy(uiLang = it))
+                uiLangOpen = false
+            }
+
+            SectionTitle(tx("sec_appearance"))
+            Text(tx("color_mode"), color = P.panelText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SettingChip("Wirabura", settings.theme == "dark", Modifier.weight(1f)) { onChange(settings.copy(theme = "dark")) }
-                SettingChip("Umweru", settings.theme == "light", Modifier.weight(1f)) { onChange(settings.copy(theme = "light")) }
-                SettingChip("Telefone", settings.theme == "system", Modifier.weight(1f)) { onChange(settings.copy(theme = "system")) }
+                SettingChip(tx("mode_dark"), settings.theme == "dark", Modifier.weight(1f)) { onChange(settings.copy(theme = "dark")) }
+                SettingChip(tx("mode_light"), settings.theme == "light", Modifier.weight(1f)) { onChange(settings.copy(theme = "light")) }
+                SettingChip(tx("mode_system"), settings.theme == "system", Modifier.weight(1f)) { onChange(settings.copy(theme = "system")) }
             }
             Spacer(modifier = Modifier.height(16.dp))
-            Text("Ingano y'inyuguti", color = P.panelText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
+            Text(tx("text_size"), color = P.panelText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SettingChip("Nto", settings.fontSize == 0, Modifier.weight(1f)) { onChange(settings.copy(fontSize = 0)) }
-                SettingChip("Hagati", settings.fontSize == 1, Modifier.weight(1f)) { onChange(settings.copy(fontSize = 1)) }
-                SettingChip("Nini", settings.fontSize == 2, Modifier.weight(1f)) { onChange(settings.copy(fontSize = 2)) }
+                SettingChip(tx("size_s"), settings.fontSize == 0, Modifier.weight(1f)) { onChange(settings.copy(fontSize = 0)) }
+                SettingChip(tx("size_m"), settings.fontSize == 1, Modifier.weight(1f)) { onChange(settings.copy(fontSize = 1)) }
+                SettingChip(tx("size_l"), settings.fontSize == 2, Modifier.weight(1f)) { onChange(settings.copy(fontSize = 2)) }
             }
             Spacer(modifier = Modifier.height(10.dp))
             Text(
-                "Ikigeragezo: Amahoro! Iyi ni ingano y'inyuguti wahisemo.",
+                tx("size_preview"),
                 color = P.panelText,
                 fontSize = (if (settings.fontSize == 0) 14 else if (settings.fontSize == 2) 18 else 16).sp,
                 modifier = Modifier
@@ -1711,46 +1784,35 @@ fun SettingsScreen(
                     .padding(horizontal = 16.dp, vertical = 14.dp)
             )
 
-            SectionTitle("Uko Yacunne isubiza")
-            Text("Uburyo bwo gusubiza", color = P.panelText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
+            SectionTitle(tx("sec_answers"))
+            Text(tx("answer_style"), color = P.panelText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SettingChip("Ngufi", settings.style == "short", Modifier.weight(1f)) { onChange(settings.copy(style = "short")) }
-                SettingChip("Isanzwe", settings.style == "normal", Modifier.weight(1f)) { onChange(settings.copy(style = "normal")) }
-                SettingChip("Irambuye", settings.style == "long", Modifier.weight(1f)) { onChange(settings.copy(style = "long")) }
+                SettingChip(tx("style_short"), settings.style == "short", Modifier.weight(1f)) { onChange(settings.copy(style = "short")) }
+                SettingChip(tx("style_normal"), settings.style == "normal", Modifier.weight(1f)) { onChange(settings.copy(style = "normal")) }
+                SettingChip(tx("style_long"), settings.style == "long", Modifier.weight(1f)) { onChange(settings.copy(style = "long")) }
             }
             Spacer(modifier = Modifier.height(16.dp))
-            Text("Ururimi rw'ibisubizo", color = P.panelText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
-            langs.forEach { (key, label) ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 6.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(if (settings.answerLang == key) P.panelSel else P.panelCard)
-                        .clickable { onChange(settings.copy(answerLang = key)) }
-                        .padding(horizontal = 16.dp, vertical = 13.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(label, color = P.panelText, fontSize = 16.sp, modifier = Modifier.weight(1f))
-                    if (settings.answerLang == key) {
-                        Icon(Icons.Filled.Check, contentDescription = null, tint = P.accent)
-                    }
-                }
+            LangPicker(
+                tx("answer_lang"), ansLabel, ansLangOpen,
+                { ansLangOpen = !ansLangOpen }, ansOptions, settings.answerLang
+            ) {
+                onChange(settings.copy(answerLang = it))
+                ansLangOpen = false
             }
             Spacer(modifier = Modifier.height(16.dp))
-            Text("Ubwenge bwa Yacunne", color = P.panelText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
+            Text(tx("intelligence"), color = P.panelText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SettingChip("Vuba", settings.model == "fast", Modifier.weight(1f)) { onChange(settings.copy(model = "fast")) }
-                SettingChip("Bwinshi (Pro)", settings.model == "pro", Modifier.weight(1f)) { onChange(settings.copy(model = "pro")) }
+                SettingChip(tx("intel_fast"), settings.model == "fast", Modifier.weight(1f)) { onChange(settings.copy(model = "fast")) }
+                SettingChip(tx("intel_pro"), settings.model == "pro", Modifier.weight(1f)) { onChange(settings.copy(model = "pro")) }
             }
             Text(
-                "Bwinshi busubiza neza, ariko butinda kandi bufise imipaka ku buntu. Iyo bunaniwe, Yacunne isubira ku buryo bwihuta.",
+                tx("intel_note"),
                 color = P.panelMuted,
                 fontSize = 13.sp,
                 modifier = Modifier.padding(top = 8.dp, start = 4.dp)
             )
             Spacer(modifier = Modifier.height(10.dp))
-            Text("Amabwiriza yanjye (kuri ibiganiro vyose)", color = P.panelText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
+            Text(tx("custom_title"), color = P.panelText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
             TextField(
                 value = custom,
                 onValueChange = {
@@ -1760,7 +1822,7 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth(),
                 maxLines = 6,
                 shape = RoundedCornerShape(14.dp),
-                placeholder = { Text("Urugero: Nitwa Yacu, ndi umushoferi wa Uber muri Afurika y'Epfo.", color = P.panelMuted) },
+                placeholder = { Text(tx("custom_hint"), color = P.panelMuted) },
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = P.panelCard,
                     unfocusedContainerColor = P.panelCard,
@@ -1772,27 +1834,22 @@ fun SettingsScreen(
                 )
             )
             Text(
-                "Ibi byoherezwa kuri Google Gemini hamwe n'ubutumwa bwawe. Ntushiremwo amakuru y'ibanga.",
+                tx("custom_note"),
                 color = P.panelMuted,
                 fontSize = 13.sp,
                 modifier = Modifier.padding(top = 8.dp, start = 4.dp)
             )
 
-            SectionTitle("Ibiganiro")
-            SettingRow("Sohora ibiganiro vyose", "Sangiza ibiganiro vyawe vyose nk'inyandiko (WhatsApp, Email...).", P.panelText) { onExport() }
+            SectionTitle(tx("sec_chats"))
+            SettingRow(tx("export_title"), tx("export_sub"), P.panelText) { onExport() }
             Spacer(modifier = Modifier.height(8.dp))
-            SettingRow("Siba amateka yose", "Ibiganiro vyose bizosibwa kuri iyi telefone.", Color(0xFFDC2626)) { onClearAll() }
+            SettingRow(tx("clear_all_title"), tx("clear_all_sub"), Color(0xFFDC2626)) { onClearAll() }
 
-            SectionTitle("Guhuza n'izindi app")
-            SettingRow(
-                "Google Calendar, Gmail, Drive, WhatsApp",
-                "Biraza vuba. Bisaba seriveri n'uruhushya rw'izo app, nta bwo bishoboka muri iyi verisiyo.",
-                P.panelMuted,
-                null
-            )
+            SectionTitle(tx("connectors_title"))
+            SettingRow("Google Calendar, Gmail, Drive, WhatsApp", tx("connectors_sub"), P.panelMuted, null)
 
-            SectionTitle("Ibijyanye na Yacunne")
-            SettingRow("Yacunne AI", "Verisiyo 1.0. Soma amakuru ya app.", P.panelText) { onAbout() }
+            SectionTitle(tx("sec_about"))
+            SettingRow(tx("about_title"), tx("about_sub"), P.panelText) { onAbout() }
         }
     }
 }
@@ -1801,10 +1858,10 @@ fun SettingsScreen(
 fun ThinkingIndicator() {
     val P = LocalPal.current
     val phrases = listOf(
-        "Irimo gutekereza",
-        "Irimo gusuzuma ikibazo cawe",
-        "Irimo gutegura igisubizo",
-        "Irimo kurangiza"
+        tx("think1"),
+        tx("think2"),
+        tx("think3"),
+        tx("think4")
     )
     var seconds by remember { mutableStateOf(0) }
     LaunchedEffect(Unit) {
