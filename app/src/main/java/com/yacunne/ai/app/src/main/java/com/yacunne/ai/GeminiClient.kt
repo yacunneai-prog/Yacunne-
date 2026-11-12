@@ -11,7 +11,34 @@ import org.json.JSONObject
 
 private var workingModel = "gemini-flash-latest"
 
-private val BACKUP_MODELS = emptyList<String>()
+private val BACKUP_MODELS = listOf("gemini-flash-lite-latest")
+
+// "Gutekereza" (thinking): tugerageza urwego ruto cyane kugira ngo igisubizo kize vuba.
+// Iyo Gemini ivuze ko ritemewe, tuva ku rundi rwego tukagerageza irindi.
+private val thinkIndex = java.util.concurrent.ConcurrentHashMap<String, Int>()
+
+private fun thinkingFor(model: String): JSONObject? {
+    val idx = thinkIndex[model] ?: 0
+    return if (model.contains("pro")) {
+        if (idx == 0) JSONObject().put("thinkingLevel", "low") else null
+    } else {
+        when (idx) {
+            0 -> JSONObject().put("thinkingLevel", "minimal")
+            1 -> JSONObject().put("thinkingBudget", 0)
+            else -> null
+        }
+    }
+}
+
+private fun downgradeThinking(model: String, code: Int, body: String): Boolean {
+    if (code != 400) return false
+    if (!body.lowercase().contains("thinking")) return false
+    val idx = thinkIndex[model] ?: 0
+    val max = if (model.contains("pro")) 1 else 2
+    if (idx >= max) return false
+    thinkIndex[model] = idx + 1
+    return true
+}
 
 // Hitamwo ubwenge bwa Yacunne: "pro" = bwinshi, ikindi cyose = bwihuta
 fun setPreferredModel(key: String) {
@@ -43,8 +70,13 @@ private const val SYSTEM_TEXT =
 private class GeminiResult(val code: Int, val body: String)
 
 private fun buildBody(history: List<ChatMessage>, model: String, extra: String): String {
+    // Twohereza amajambo 24 ya nyuma gusa kugira ngo igisubizo kidatinda mu biganiro birebire
+    var recent: List<ChatMessage> = if (history.size > 24) history.takeLast(24) else history
+    while (recent.isNotEmpty() && !recent.first().fromUser) {
+        recent = recent.drop(1)
+    }
     val contents = JSONArray()
-    for (m in history) {
+    for (m in recent) {
         val part = JSONObject().put("text", m.text)
         contents.put(
             JSONObject()
@@ -59,9 +91,9 @@ private fun buildBody(history: List<ChatMessage>, model: String, extra: String):
         .put("contents", contents)
     // Temperature nto: amagambo asohoka neza, adateranye
     val gen = JSONObject().put("temperature", 0.4).put("topP", 0.9)
-    // Kuzimya "gutekereza" kwa 2.5 flash kugira ngo igisubizo kize vuba
-    if (model.contains("2.5") && model.contains("flash")) {
-        gen.put("thinkingConfig", JSONObject().put("thinkingBudget", 0))
+    val thinking = thinkingFor(model)
+    if (thinking != null) {
+        gen.put("thinkingConfig", thinking)
     }
     body.put("generationConfig", gen)
     return body.toString()
@@ -147,9 +179,10 @@ private suspend fun tryModel(
     errors: MutableList<String>,
     extra: String
 ): String? {
-    val requestBody = buildBody(history, model, extra)
+    var requestBody = buildBody(history, model, extra)
     var attempts = 0
-    while (attempts < 3) {
+    var downgrades = 0
+    while (attempts < 5) {
         attempts++
         val result = try {
             callModel(model, requestBody)
@@ -161,6 +194,11 @@ private suspend fun tryModel(
         }
         if (result.code in 200..299) {
             return extractText(result.body)
+        }
+        if (downgrades < 2 && downgradeThinking(model, result.code, result.body)) {
+            downgrades++
+            requestBody = buildBody(history, model, extra)
+            continue
         }
         val msg = "(" + result.code + ") " + model + ": " + shortMessage(result.body)
         if (result.code == 401 || result.code == 403 ||
@@ -180,24 +218,28 @@ private suspend fun tryModel(
     return null
 }
 
-suspend fun askGeminiWithFallback(history: List<ChatMessage>, extra: String = ""): String = withContext(Dispatchers.IO) {
+suspend fun askGeminiWithFallback(
+    history: List<ChatMessage>,
+    extra: String = "",
+    avoid: String = ""
+): String = withContext(Dispatchers.IO) {
     try {
         val errors = mutableListOf<String>()
-        val first = tryModel(workingModel, history, errors, extra)
+        val first = if (avoid.isEmpty()) tryModel(workingModel, history, errors, extra) else null
         if (first != null) {
             return@withContext first
         }
         if (errors.lastOrNull()?.startsWith("FATAL") == true) {
             return@withContext "Ikosa " + errors.last().removePrefix("FATAL ")
         }
-        if (errors.none { it.startsWith("(") }) {
+        if (avoid.isEmpty() && errors.none { it.startsWith("(") }) {
             return@withContext "Internet ntikora neza muri iki gihe. Ongera ugerageze mu kanya."
         }
 
         val others = (BACKUP_MODELS + listFlashModels())
             .distinct()
-            .filter { it != workingModel }
-            .take(4)
+            .filter { it != workingModel && it != avoid }
+            .take(3)
         for (m in others) {
             val text = tryModel(m, history, errors, extra)
             if (text != null) {
@@ -234,6 +276,24 @@ private fun extractStreamText(json: String): String {
     }
 }
 
+private fun openStreamConn(model: String, requestBody: String): HttpURLConnection {
+    val url = URL(
+        "https://generativelanguage.googleapis.com/v1beta/models/" +
+            model + ":streamGenerateContent?alt=sse"
+    )
+    val conn = url.openConnection() as HttpURLConnection
+    conn.requestMethod = "POST"
+    conn.useCaches = false
+    conn.setRequestProperty("Connection", "close")
+    conn.setRequestProperty("Content-Type", "application/json")
+    conn.setRequestProperty("x-goog-api-key", BuildConfig.GEMINI_API_KEY.trim())
+    conn.connectTimeout = 8000
+    conn.readTimeout = 25000
+    conn.doOutput = true
+    conn.outputStream.use { it.write(requestBody.toByteArray()) }
+    return conn
+}
+
 // Igisubizo kiza ijambo ku rindi (streaming). Iyo bidakunze, isubira ku buryo busanzwe.
 suspend fun askGeminiStream(
     history: List<ChatMessage>,
@@ -241,28 +301,26 @@ suspend fun askGeminiStream(
     onText: (String) -> Unit
 ): String = withContext(Dispatchers.IO) {
     val sb = StringBuilder()
+    val model = workingModel
     try {
-        val requestBody = buildBody(history, workingModel, extra)
-        val url = URL(
-            "https://generativelanguage.googleapis.com/v1beta/models/" +
-                workingModel + ":streamGenerateContent?alt=sse"
-        )
-        val conn = url.openConnection() as HttpURLConnection
-        try {
-            conn.requestMethod = "POST"
-            conn.useCaches = false
-            conn.setRequestProperty("Connection", "close")
-            conn.setRequestProperty("Content-Type", "application/json")
-            conn.setRequestProperty("x-goog-api-key", BuildConfig.GEMINI_API_KEY.trim())
-            conn.connectTimeout = 8000
-            conn.readTimeout = 30000
-            conn.doOutput = true
-            conn.outputStream.use { it.write(requestBody.toByteArray()) }
-            val code = conn.responseCode
-            if (code !in 200..299) {
+        var conn: HttpURLConnection? = null
+        var tries = 0
+        while (conn == null) {
+            tries++
+            val c = openStreamConn(model, buildBody(history, model, extra))
+            val code = c.responseCode
+            if (code in 200..299) {
+                conn = c
+            } else {
+                val errBody = c.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
+                c.disconnect()
+                if (tries < 3 && downgradeThinking(model, code, errBody)) continue
                 return@withContext askGeminiWithFallback(history, extra)
             }
-            conn.inputStream.bufferedReader().use { reader ->
+        }
+        val live: HttpURLConnection = conn ?: return@withContext askGeminiWithFallback(history, extra)
+        try {
+            live.inputStream.bufferedReader().use { reader ->
                 while (isActive) {
                     val line = reader.readLine() ?: break
                     if (!line.startsWith("data:")) continue
@@ -276,9 +334,12 @@ suspend fun askGeminiStream(
                 }
             }
         } finally {
-            conn.disconnect()
+            live.disconnect()
         }
         if (sb.isEmpty()) askGeminiWithFallback(history, extra) else sb.toString()
+    } catch (e: java.net.SocketTimeoutException) {
+        // Model yatinze: tugerageze indi model aho gusubiramo iyo imwe
+        if (sb.isNotEmpty()) sb.toString() else askGeminiWithFallback(history, extra, model)
     } catch (e: java.io.IOException) {
         if (sb.isNotEmpty()) sb.toString() else askGeminiWithFallback(history, extra)
     }
