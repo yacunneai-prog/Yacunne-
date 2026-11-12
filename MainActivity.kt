@@ -1,0 +1,1905 @@
+package com.yacunne.ai
+
+import android.content.Intent
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Create
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.rememberDrawerState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import java.util.UUID
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+
+data class ChatMessage(val text: String, val fromUser: Boolean)
+
+private val NeonBlue = Color(0xFF3B82F6)
+private val DeepNavy = Color(0xFF0B0F1A)
+private val SoftText = Color(0xFFBCC4E0)
+
+private class Pal(
+    val bg: Color,
+    val card: Color,
+    val border: Color,
+    val soft: Color,
+    val text: Color,
+    val userBubble: Color,
+    val userText: Color,
+    val placeholder: Color,
+    val accent: Color,
+    val panel: Color,
+    val panelCard: Color,
+    val panelText: Color,
+    val panelMuted: Color,
+    val panelSel: Color,
+    val panelLine: Color
+)
+
+private val DarkPal = Pal(
+    bg = Color(0xFF0B0F1A),
+    card = Color(0xFF1C2540),
+    border = Color(0xFF3D4A75),
+    soft = Color(0xFFBCC4E0),
+    text = Color(0xFFF1F2FF),
+    userBubble = Color(0xFF1E3A8A),
+    userText = Color(0xFFF1F2FF),
+    placeholder = Color(0xFFA3ABC8),
+    accent = Color(0xFF3B82F6),
+    panel = Color(0xFF111827),
+    panelCard = Color(0xFF1C2540),
+    panelText = Color(0xFFF1F2FF),
+    panelMuted = Color(0xFF9AA3C2),
+    panelSel = Color(0xFF26335A),
+    panelLine = Color(0xFF2A3355)
+)
+
+private val LightPal = Pal(
+    bg = Color(0xFFFAF9F5),
+    card = Color(0xFFFFFFFF),
+    border = Color(0xFFD9D6CC),
+    soft = Color(0xFF5F6272),
+    text = Color(0xFF1B1B1F),
+    userBubble = Color(0xFFDCE7FF),
+    userText = Color(0xFF14213D),
+    placeholder = Color(0xFF8A8D99),
+    accent = Color(0xFF2563EB),
+    panel = Color(0xFFF5F4EF),
+    panelCard = Color(0xFFFFFFFF),
+    panelText = Color(0xFF1B1B1F),
+    panelMuted = Color(0xFF6B6B73),
+    panelSel = Color(0xFFE6E4DB),
+    panelLine = Color(0xFFDAD8CF)
+)
+
+private val LocalPal = compositionLocalOf { DarkPal }
+
+private val NeonColors = darkColorScheme(
+    primary = NeonBlue,
+    onPrimary = Color.White,
+    background = DeepNavy,
+    surface = Color(0xFF111827),
+    onBackground = Color(0xFFF1F2FF),
+    onSurface = Color(0xFFF1F2FF)
+)
+
+private val LightColors = lightColorScheme(
+    primary = Color(0xFF2563EB),
+    onPrimary = Color.White,
+    background = LightPal.bg,
+    surface = Color.White,
+    onBackground = LightPal.text,
+    onSurface = LightPal.text
+)
+
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+        )
+        UiLang.current = resolveUiLang(SettingsStore.load(this).uiLang)
+        setContent {
+            MaterialTheme(colorScheme = NeonColors) {
+                ChatScreen()
+            }
+        }
+    }
+}
+
+@Composable
+fun ChatScreen() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val listState = rememberLazyListState()
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    val clipboard = LocalClipboardManager.current
+
+    val conversations = remember {
+        mutableStateListOf<Conversation>().apply { addAll(ChatStore.load(context)) }
+    }
+    var currentId by remember { mutableStateOf(UUID.randomUUID().toString()) }
+    var input by remember { mutableStateOf("") }
+    var loading by remember { mutableStateOf(false) }
+    var streaming by remember { mutableStateOf<String?>(null) }
+    var job by remember { mutableStateOf<Job?>(null) }
+    var showAbout by remember { mutableStateOf(false) }
+    var showClearConfirm by remember { mutableStateOf(false) }
+    var errorMsg by remember { mutableStateOf<String?>(null) }
+    var userName by remember { mutableStateOf(ProfileStore.load(context)) }
+    val projects = remember {
+        mutableStateListOf<Project>().apply { addAll(ProjectStore.load(context)) }
+    }
+    var activeProjectId by remember { mutableStateOf("") }
+    var newMode by remember { mutableStateOf("") }
+    var renameId by remember { mutableStateOf<String?>(null) }
+    var editingProject by remember { mutableStateOf<Project?>(null) }
+    var showProjectDialog by remember { mutableStateOf(false) }
+    var showProfile by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
+    var settings by remember { mutableStateOf(SettingsStore.load(context)) }
+    val textSize = when (settings.fontSize) {
+        0 -> 14
+        2 -> 18
+        else -> 16
+    }
+    val systemDark = isSystemInDarkTheme()
+    val dark = when (settings.theme) {
+        "light" -> false
+        "system" -> systemDark
+        else -> true
+    }
+    val pal = if (dark) DarkPal else LightPal
+    LaunchedEffect(dark) {
+        val bar = if (dark) {
+            SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+        } else {
+            SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
+        }
+        (context as? ComponentActivity)?.enableEdgeToEdge(
+            statusBarStyle = bar,
+            navigationBarStyle = bar
+        )
+    }
+    var runId by remember { mutableStateOf(0) }
+    var runningConv by remember { mutableStateOf("") }
+
+    val messages: List<ChatMessage> =
+        conversations.firstOrNull { it.id == currentId }?.messages ?: emptyList()
+
+    fun persist() {
+        ChatStore.save(context, conversations.toList())
+    }
+
+    fun addMessage(convId: String, msg: ChatMessage) {
+        val idx = conversations.indexOfFirst { it.id == convId }
+        if (idx >= 0) {
+            val c = conversations[idx]
+            conversations[idx] = c.copy(messages = c.messages + msg)
+        } else {
+            val title = if (newMode.isNotEmpty()) modeTitle(newMode) else msg.text.take(32)
+            conversations.add(
+                0,
+                Conversation(convId, title, listOf(msg), false, activeProjectId, newMode)
+            )
+        }
+    }
+
+    fun toggleStar(id: String) {
+        val idx = conversations.indexOfFirst { it.id == id }
+        if (idx >= 0) {
+            conversations[idx] = conversations[idx].copy(starred = !conversations[idx].starred)
+            persist()
+        }
+    }
+
+    fun moveToProject(id: String, pid: String) {
+        val idx = conversations.indexOfFirst { it.id == id }
+        if (idx >= 0) {
+            conversations[idx] = conversations[idx].copy(projectId = pid)
+            persist()
+        }
+    }
+
+    fun renameConv(id: String, title: String) {
+        val idx = conversations.indexOfFirst { it.id == id }
+        if (idx >= 0) {
+            conversations[idx] = conversations[idx].copy(title = title)
+            persist()
+        }
+    }
+
+    fun stopGenerating() {
+        runId++
+        job?.cancel()
+        job = null
+        val partial = streaming
+        if (!partial.isNullOrEmpty() && conversations.any { it.id == runningConv }) {
+            addMessage(runningConv, ChatMessage(partial, false))
+            persist()
+        }
+        streaming = null
+        loading = false
+        errorMsg = null
+    }
+
+    fun newChat() {
+        stopGenerating()
+        currentId = UUID.randomUUID().toString()
+        newMode = ""
+        input = ""
+    }
+
+    fun deleteConversation(id: String) {
+        conversations.removeAll { it.id == id }
+        if (id == currentId) {
+            stopGenerating()
+            currentId = UUID.randomUUID().toString()
+            newMode = ""
+        }
+        persist()
+    }
+
+    fun clearAll() {
+        stopGenerating()
+        conversations.clear()
+        currentId = UUID.randomUUID().toString()
+        newMode = ""
+        persist()
+    }
+
+    fun shareChat() {
+        if (messages.isEmpty()) {
+            android.widget.Toast.makeText(context, tx("no_chat"), android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        val body = messages.joinToString("\n\n") {
+            (if (it.fromUser) tx("you") + ": " else "Yacunne AI: ") + it.text
+        }
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, body)
+        }
+        context.startActivity(Intent.createChooser(intent, tx("share_chat")))
+    }
+
+    fun shareAll() {
+        if (conversations.isEmpty()) {
+            android.widget.Toast.makeText(context, tx("no_chat"), android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        val body = conversations.joinToString("\n\n-----\n\n") { c ->
+            c.title + "\n\n" + c.messages.joinToString("\n\n") {
+                (if (it.fromUser) tx("you") + ": " else "Yacunne AI: ") + it.text
+            }
+        }
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, body)
+        }
+        context.startActivity(Intent.createChooser(intent, tx("export_chats")))
+    }
+
+    fun ask(convId: String) {
+        errorMsg = null
+        loading = true
+        runningConv = convId
+        runId++
+        val myRun = runId
+        setPreferredModel(settings.model)
+        val conv = conversations.first { it.id == convId }
+        val history = conv.messages
+        val extra = buildExtra(
+            conv.mode,
+            projects.firstOrNull { it.id == conv.projectId }?.instructions ?: "",
+            settings,
+            userName
+        )
+        job = scope.launch {
+            val target = java.util.concurrent.atomic.AtomicReference("")
+            val result = java.util.concurrent.atomic.AtomicReference("")
+            val done = java.util.concurrent.atomic.AtomicBoolean(false)
+            launch {
+                val r = askGeminiStream(history, extra) { target.set(it) }
+                if (!isErrorReply(r)) target.set(r)
+                result.set(r)
+                done.set(true)
+            }
+            var shown = 0
+            while (true) {
+                val t = target.get()
+                if (shown < t.length) {
+                    val backlog = t.length - shown
+                    val step = if (backlog > 200) 8 else if (backlog > 60) 4 else 2
+                    shown = minOf(t.length, shown + step)
+                    if (myRun == runId) streaming = t.substring(0, shown)
+                    delay(16)
+                } else if (done.get()) {
+                    break
+                } else {
+                    delay(30)
+                }
+            }
+            if (myRun != runId) return@launch
+            val full = result.get()
+            if (isErrorReply(full)) {
+                errorMsg = friendlyError(full)
+                streaming = null
+                loading = false
+                job = null
+                return@launch
+            }
+            addMessage(convId, ChatMessage(full, false))
+            streaming = null
+            loading = false
+            job = null
+            persist()
+        }
+    }
+
+    fun regenerate() {
+        if (loading) return
+        val idx = conversations.indexOfFirst { it.id == currentId }
+        if (idx < 0) return
+        val c = conversations[idx]
+        if (c.messages.isEmpty() || c.messages.last().fromUser) return
+        conversations[idx] = c.copy(messages = c.messages.dropLast(1))
+        persist()
+        ask(currentId)
+    }
+
+    fun sendText(raw: String) {
+        val text = raw.trim()
+        if (text.isEmpty() || loading) return
+        val convId = currentId
+        addMessage(convId, ChatMessage(text, true))
+        persist()
+        input = ""
+        ask(convId)
+    }
+
+    LaunchedEffect(currentId, messages.size, streaming?.length, loading) {
+        if (messages.isNotEmpty() || streaming != null) {
+            listState.scrollBy(100000f)
+        }
+    }
+
+    BackHandler(enabled = drawerState.isOpen) {
+        scope.launch { drawerState.close() }
+    }
+
+    CompositionLocalProvider(LocalPal provides pal) {
+        MaterialTheme(colorScheme = if (dark) NeonColors else LightColors) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                ModalNavigationDrawer(
+                    drawerState = drawerState,
+                    drawerContent = {
+                        ModalDrawerSheet(drawerContainerColor = pal.panel) {
+                            DrawerContent(
+                                conversations = conversations,
+                                projects = projects,
+                                currentId = currentId,
+                                activeProjectId = activeProjectId,
+                                onNew = {
+                                    newChat()
+                                    scope.launch { drawerState.close() }
+                                },
+                                onOpen = { id ->
+                                    stopGenerating()
+                                    currentId = id
+                                    scope.launch { drawerState.close() }
+                                },
+                                onDelete = { id -> deleteConversation(id) },
+                                onToggleStar = { id -> toggleStar(id) },
+                                onRename = { id -> renameId = id },
+                                onMove = { id, pid -> moveToProject(id, pid) },
+                                onSelectProject = { id ->
+                                    activeProjectId = if (activeProjectId == id) "" else id
+                                },
+                                onNewProject = {
+                                    editingProject = null
+                                    showProjectDialog = true
+                                },
+                                onEditProject = { p ->
+                                    editingProject = p
+                                    showProjectDialog = true
+                                },
+                                onSettings = {
+                                    showSettings = true
+                                    scope.launch { drawerState.close() }
+                                },
+                                onStart = { mode ->
+                                    newChat()
+                                    newMode = mode
+                                    sendText(modePrompt(mode))
+                                    scope.launch { drawerState.close() }
+                                }
+                            )
+                        }
+                    }
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(pal.bg)
+                            .statusBarsPadding()
+                            .navigationBarsPadding()
+                            .imePadding()
+                    ) {
+                        ChatHeader(
+                            onMenu = { scope.launch { drawerState.open() } },
+                            onNewChat = { newChat() },
+                            onShare = { shareChat() },
+                            onDeleteChat = { deleteConversation(currentId) },
+                            onClearAll = { showClearConfirm = true },
+                            onAbout = { showAbout = true }
+                        )
+                        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                            if (messages.isEmpty() && streaming == null) {
+                                EmptyState(userName = userName, onPick = { sendText(it) })
+                            } else {
+                                LazyColumn(
+                                    state = listState,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    itemsIndexed(messages) { index, message ->
+                                        val canRegenerate =
+                                            index == messages.lastIndex && !message.fromUser && !loading
+                                        MessageRow(
+                                            textSize = textSize,
+                                            message = message,
+                                            onCopy = {
+                                                clipboard.setText(AnnotatedString(it))
+                                                android.widget.Toast.makeText(
+                                                    context,
+                                                    tx("copied"),
+                                                    android.widget.Toast.LENGTH_SHORT
+                                                ).show()
+                                            },
+                                            onRegenerate = if (canRegenerate) ({ regenerate() }) else null
+                                        )
+                                    }
+                                    val live = streaming
+                                    if (live != null) {
+                                        item {
+                                            MessageRow(
+                                                textSize = textSize,
+                                                message = ChatMessage(live, false),
+                                                onCopy = null,
+                                                onRegenerate = null
+                                            )
+                                        }
+                                    }
+                                    if (loading && streaming == null) {
+                                        item { ThinkingIndicator() }
+                                    }
+                                }
+                            }
+                        }
+                        val err = errorMsg
+                        if (err != null && !loading) {
+                            ErrorBanner(
+                                text = err,
+                                onRetry = { ask(currentId) },
+                                onClose = { errorMsg = null }
+                            )
+                        }
+                        InputBar(
+                            input = input,
+                            onInputChange = { input = it },
+                            loading = loading,
+                            onSend = { sendText(input) },
+                            onStop = { stopGenerating() }
+                        )
+                        if (showAbout) {
+                            AlertDialog(
+                                onDismissRequest = { showAbout = false },
+                                confirmButton = {
+                                    TextButton(onClick = { showAbout = false }) { Text(tx("ok")) }
+                                },
+                                title = { Text("Yacunne AI") },
+                                text = {
+                                    Text(
+                                        tx("about_text")
+                                    )
+                                }
+                            )
+                        }
+                        if (showProfile) {
+                            var draft by remember { mutableStateOf(userName) }
+                            AlertDialog(
+                                onDismissRequest = { showProfile = false },
+                                confirmButton = {
+                                    TextButton(onClick = {
+                                        val n = draft.trim().take(30)
+                                        ProfileStore.save(context, n)
+                                        userName = n
+                                        showProfile = false
+                                    }) { Text(tx("save")) }
+                                },
+                                dismissButton = {
+                                    TextButton(onClick = { showProfile = false }) { Text(tx("cancel")) }
+                                },
+                                title = { Text(tx("profile_title")) },
+                                text = {
+                                    Column {
+                                        Text(tx("profile_text"))
+                                        Spacer(modifier = Modifier.height(12.dp))
+                                        TextField(
+                                            value = draft,
+                                            onValueChange = { draft = it },
+                                            singleLine = true,
+                                            placeholder = { Text(tx("profile_name_hint")) }
+                                        )
+                                    }
+                                }
+                            )
+                        }
+                        if (showProjectDialog) {
+                            val editing = editingProject
+                            var nameDraft by remember { mutableStateOf(editing?.name ?: "") }
+                            var instrDraft by remember { mutableStateOf(editing?.instructions ?: "") }
+                            AlertDialog(
+                                onDismissRequest = { showProjectDialog = false },
+                                confirmButton = {
+                                    TextButton(onClick = {
+                                        val n = nameDraft.trim().take(30)
+                                        if (n.isNotEmpty()) {
+                                            val instr = instrDraft.trim().take(600)
+                                            if (editing == null) {
+                                                projects.add(Project(UUID.randomUUID().toString(), n, instr))
+                                            } else {
+                                                val i = projects.indexOfFirst { it.id == editing.id }
+                                                if (i >= 0) projects[i] = editing.copy(name = n, instructions = instr)
+                                            }
+                                            ProjectStore.save(context, projects.toList())
+                                            showProjectDialog = false
+                                        }
+                                    }) { Text(tx("save")) }
+                                },
+                                dismissButton = {
+                                    TextButton(onClick = { showProjectDialog = false }) { Text(tx("cancel")) }
+                                },
+                                title = { Text(if (editing == null) tx("project_new") else tx("project_edit")) },
+                                text = {
+                                    Column {
+                                        TextField(
+                                            value = nameDraft,
+                                            onValueChange = { nameDraft = it },
+                                            singleLine = true,
+                                            placeholder = { Text(tx("project_name_hint")) }
+                                        )
+                                        Spacer(modifier = Modifier.height(10.dp))
+                                        TextField(
+                                            value = instrDraft,
+                                            onValueChange = { instrDraft = it },
+                                            maxLines = 5,
+                                            placeholder = { Text(tx("project_instr_hint")) }
+                                        )
+                                        if (editing != null) {
+                                            TextButton(onClick = {
+                                                projects.removeAll { it.id == editing.id }
+                                                for (i in conversations.indices) {
+                                                    if (conversations[i].projectId == editing.id) {
+                                                        conversations[i] = conversations[i].copy(projectId = "")
+                                                    }
+                                                }
+                                                if (activeProjectId == editing.id) activeProjectId = ""
+                                                ProjectStore.save(context, projects.toList())
+                                                persist()
+                                                showProjectDialog = false
+                                            }) { Text(tx("project_delete"), color = Color(0xFFFF8A8A)) }
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                        val rid = renameId
+                        if (rid != null) {
+                            var titleDraft by remember {
+                                mutableStateOf(conversations.firstOrNull { it.id == rid }?.title ?: "")
+                            }
+                            AlertDialog(
+                                onDismissRequest = { renameId = null },
+                                confirmButton = {
+                                    TextButton(onClick = {
+                                        val t = titleDraft.trim().take(40)
+                                        if (t.isNotEmpty()) renameConv(rid, t)
+                                        renameId = null
+                                    }) { Text(tx("save")) }
+                                },
+                                dismissButton = {
+                                    TextButton(onClick = { renameId = null }) { Text(tx("cancel")) }
+                                },
+                                title = { Text(tx("rename_title")) },
+                                text = {
+                                    TextField(
+                                        value = titleDraft,
+                                        onValueChange = { titleDraft = it },
+                                        singleLine = true
+                                    )
+                                }
+                            )
+                        }
+                        if (showClearConfirm) {
+                            AlertDialog(
+                                onDismissRequest = { showClearConfirm = false },
+                                confirmButton = {
+                                    TextButton(onClick = {
+                                        showClearConfirm = false
+                                        clearAll()
+                                    }) { Text(tx("clear_confirm")) }
+                                },
+                                dismissButton = {
+                                    TextButton(onClick = { showClearConfirm = false }) { Text(tx("cancel")) }
+                                },
+                                title = { Text(tx("clear_title")) },
+                                text = { Text(tx("clear_text")) }
+                            )
+                        }
+                    }
+                }
+                if (showSettings) {
+                    BackHandler { showSettings = false }
+                    SettingsScreen(
+                        settings = settings,
+                        userName = userName,
+                        onChange = { st ->
+                            if (st.uiLang != settings.uiLang) UiLang.current = resolveUiLang(st.uiLang)
+                            settings = st
+                            SettingsStore.save(context, st)
+                        },
+                        onBack = { showSettings = false },
+                        onEditName = { showProfile = true },
+                        onClearAll = { showClearConfirm = true },
+                        onExport = { shareAll() },
+                        onAbout = { showAbout = true }
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun modeTitle(mode: String): String = when (mode) {
+    "learn" -> tx("mode_learn")
+    "write" -> tx("mode_write")
+    "plan" -> tx("mode_plan")
+    "translate" -> tx("mode_translate")
+    else -> ""
+}
+
+private fun modePrompt(mode: String): String = when (mode) {
+    "learn" -> tx("prompt_learn")
+    "write" -> tx("prompt_write")
+    "plan" -> tx("prompt_plan")
+    "translate" -> tx("prompt_translate")
+    else -> ""
+}
+
+private fun modeInstruction(mode: String): String = when (mode) {
+    "learn" -> "MODE: You are a patient teacher. Ask what the user wants to learn and their level, " +
+        "then teach step by step with short lessons, simple examples and one small exercise at the end."
+    "write" -> "MODE: You are a writing helper. Help write messages, letters and posts in the user's language. " +
+        "Ask who it is for if needed, then give a ready-to-send draft and offer a shorter or warmer version."
+    "plan" -> "MODE: You are a planner. Ask a few short questions, then give a clear plan with steps, " +
+        "priorities and the next three actions. Think about money, time and risks."
+    "translate" -> "MODE: You are a careful translator. Ask which languages if unclear. " +
+        "Give the translation first, then short notes about tone or alternatives. Be extra careful with Kirundi."
+    else -> ""
+}
+
+private fun settingsInstruction(st: AppSettings): String {
+    var t = ""
+    val lang = ANSWER_LANGS.firstOrNull { it.code == st.answerLang }
+    if (lang != null) {
+        t += when (lang.code) {
+            "rn" -> " Always answer in real Kirundi (the language of Burundi, not Kinyarwanda) unless the user asks for another language."
+            "rw" -> " Always answer in Kinyarwanda (not Kirundi) unless the user asks for another language."
+            else -> " Always answer in " + lang.english + " unless the user asks for another language."
+        }
+    }
+    when (st.style) {
+        "short" -> t += " ANSWER LENGTH: keep answers short and to the point."
+        "long" -> t += " ANSWER LENGTH: give detailed and thorough answers."
+    }
+    if (st.custom.isNotBlank()) {
+        t += " THE USER'S OWN INSTRUCTIONS FOR ALL CHATS: " + st.custom.trim()
+    }
+    return t
+}
+
+private fun buildExtra(
+    mode: String,
+    projectInstructions: String,
+    st: AppSettings,
+    name: String
+): String {
+    var t = modeInstruction(mode) + settingsInstruction(st)
+    if (name.isNotBlank()) {
+        t = t + " THE USER'S NAME IS: " + name.trim() + ". Use it naturally, not in every message."
+    }
+    if (projectInstructions.isNotBlank()) {
+        t = t + " PROJECT INSTRUCTIONS FROM THE USER: " + projectInstructions.trim()
+    }
+    return t
+}
+
+@Composable
+fun DrawerRow(
+    icon: ImageVector,
+    label: String,
+    tint: Color,
+    selected: Boolean,
+    trailing: ImageVector?,
+    onClick: () -> Unit
+) {
+    val P = LocalPal.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (selected) P.panelSel else Color.Transparent)
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
+        Spacer(modifier = Modifier.width(14.dp))
+        Text(label, color = P.panelText, fontSize = 16.sp, modifier = Modifier.weight(1f))
+        if (trailing != null) {
+            Icon(trailing, contentDescription = null, tint = P.panelMuted, modifier = Modifier.size(20.dp))
+        }
+    }
+}
+
+@Composable
+fun DrawerSubRow(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    trailing: @Composable () -> Unit
+) {
+    val P = LocalPal.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (selected) P.panelSel else Color.Transparent)
+            .clickable { onClick() }
+            .padding(start = 48.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            label,
+            color = P.panelText,
+            fontSize = 15.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+        trailing()
+    }
+}
+
+@Composable
+fun DrawerContent(
+    conversations: List<Conversation>,
+    projects: List<Project>,
+    currentId: String,
+    activeProjectId: String,
+    onNew: () -> Unit,
+    onOpen: (String) -> Unit,
+    onDelete: (String) -> Unit,
+    onToggleStar: (String) -> Unit,
+    onRename: (String) -> Unit,
+    onMove: (String, String) -> Unit,
+    onSelectProject: (String) -> Unit,
+    onNewProject: () -> Unit,
+    onEditProject: (Project) -> Unit,
+    onSettings: () -> Unit,
+    onStart: (String) -> Unit
+) {
+    val P = LocalPal.current
+    var searching by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
+    var showAll by remember { mutableStateOf(false) }
+    var projectsOpen by remember { mutableStateOf(false) }
+    var modesOpen by remember { mutableStateOf(false) }
+    var onlyStarred by remember { mutableStateOf(false) }
+    var menuFor by remember { mutableStateOf("") }
+
+    val base = conversations.filter {
+        (activeProjectId.isEmpty() || it.projectId == activeProjectId) &&
+            (!onlyStarred || it.starred)
+    }
+    val filtered = if (query.isBlank()) {
+        base
+    } else {
+        base.filter { it.title.contains(query.trim(), ignoreCase = true) }
+    }
+    val sorted = filtered.sortedByDescending { it.starred }
+    val visible = if (showAll || query.isNotBlank() || onlyStarred || sorted.size <= 8) {
+        sorted
+    } else {
+        sorted.take(8)
+    }
+    val activeProject = projects.firstOrNull { it.id == activeProjectId }
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        if (searching) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    placeholder = { Text(tx("search_hint"), color = P.panelMuted) },
+                    shape = RoundedCornerShape(16.dp),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = P.panelCard,
+                        unfocusedContainerColor = P.panelCard,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        focusedTextColor = P.panelText,
+                        unfocusedTextColor = P.panelText,
+                        cursorColor = P.accent
+                    )
+                )
+                Icon(
+                    Icons.Filled.Close,
+                    contentDescription = tx("close"),
+                    tint = P.panelText,
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .clickable {
+                            searching = false
+                            query = ""
+                        }
+                        .padding(10.dp)
+                )
+            }
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "Yacunne AI",
+                    color = P.panelText,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    modifier = Modifier.weight(1f)
+                )
+                Icon(
+                    Icons.Filled.Search,
+                    contentDescription = tx("search"),
+                    tint = P.panelText,
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .clickable { searching = true }
+                        .padding(10.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Icon(
+                    Icons.Filled.Edit,
+                    contentDescription = tx("new_chat"),
+                    tint = Color.White,
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(P.accent)
+                        .clickable { onNew() }
+                        .padding(11.dp)
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(10.dp))
+
+        DrawerRow(
+            Icons.Filled.Home, tx("projects"), P.accent, activeProjectId.isNotEmpty(),
+            if (projectsOpen) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown
+        ) { projectsOpen = !projectsOpen }
+        if (projectsOpen) {
+            projects.forEach { p ->
+                DrawerSubRow(p.name, p.id == activeProjectId, { onSelectProject(p.id) }) {
+                    Icon(
+                        Icons.Filled.Edit,
+                        contentDescription = tx("edit"),
+                        tint = P.panelMuted,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .clickable { onEditProject(p) }
+                            .padding(9.dp)
+                    )
+                }
+            }
+            Text(
+                tx("project_add"),
+                color = P.accent,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { onNewProject() }
+                    .padding(start = 48.dp, top = 10.dp, bottom = 10.dp)
+            )
+        }
+        DrawerRow(
+            Icons.Filled.Star, tx("favorites"), Color(0xFFD97706), onlyStarred, null
+        ) { onlyStarred = !onlyStarred }
+        DrawerRow(
+            Icons.Filled.Settings, tx("modes"), Color(0xFF059669), false,
+            if (modesOpen) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown
+        ) { modesOpen = !modesOpen }
+        if (modesOpen) {
+            DrawerSubRow(tx("mode_learn"), false, { onStart("learn") }) {
+                Icon(Icons.Filled.Info, null, tint = Color(0xFF2563EB), modifier = Modifier.size(20.dp))
+            }
+            DrawerSubRow(tx("mode_write"), false, { onStart("write") }) {
+                Icon(Icons.Filled.Create, null, tint = Color(0xFF059669), modifier = Modifier.size(20.dp))
+            }
+            DrawerSubRow(tx("mode_plan"), false, { onStart("plan") }) {
+                Icon(Icons.Filled.Build, null, tint = Color(0xFFD97706), modifier = Modifier.size(20.dp))
+            }
+            DrawerSubRow(tx("mode_translate"), false, { onStart("translate") }) {
+                Icon(Icons.Filled.Refresh, null, tint = Color(0xFFDB2777), modifier = Modifier.size(20.dp))
+            }
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
+        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(P.panelLine))
+        Spacer(modifier = Modifier.height(10.dp))
+        if (activeProject != null) {
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(P.panelSel)
+                    .clickable { onSelectProject(activeProject.id) }
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    tx("project_label") + activeProject.name,
+                    color = P.panelText,
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Icon(Icons.Filled.Close, null, tint = P.panelMuted, modifier = Modifier.size(14.dp))
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+        Text(tx("history"), color = P.panelMuted, fontSize = 13.sp)
+        Spacer(modifier = Modifier.height(6.dp))
+        if (visible.isEmpty()) {
+            Text(
+                if (query.isBlank()) tx("no_chats") else tx("no_results"),
+                color = P.panelMuted,
+                fontSize = 14.sp,
+                fontStyle = FontStyle.Italic
+            )
+        }
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            items(visible, key = { it.id }) { c ->
+                val selected = c.id == currentId
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (selected) P.panelSel else Color.Transparent)
+                        .clickable { onOpen(c.id) }
+                        .padding(start = 12.dp, top = 2.dp, bottom = 2.dp, end = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (c.starred) {
+                        Icon(
+                            Icons.Filled.Star,
+                            contentDescription = null,
+                            tint = Color(0xFFD97706),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                    }
+                    Text(
+                        c.title,
+                        color = P.panelText,
+                        fontSize = 15.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Box {
+                        Icon(
+                            Icons.Filled.MoreVert,
+                            contentDescription = tx("more"),
+                            tint = P.panelMuted,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .clickable { menuFor = c.id }
+                                .padding(9.dp)
+                        )
+                        DropdownMenu(
+                            expanded = menuFor == c.id,
+                            onDismissRequest = { menuFor = "" }
+                        ) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(if (c.starred) tx("unstar") else tx("star"))
+                                },
+                                onClick = {
+                                    menuFor = ""
+                                    onToggleStar(c.id)
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(tx("rename")) },
+                                onClick = {
+                                    menuFor = ""
+                                    onRename(c.id)
+                                }
+                            )
+                            projects.forEach { p ->
+                                DropdownMenuItem(
+                                    text = { Text(tx("move_to") + " " + p.name) },
+                                    onClick = {
+                                        menuFor = ""
+                                        onMove(c.id, p.id)
+                                    }
+                                )
+                            }
+                            if (c.projectId.isNotEmpty()) {
+                                DropdownMenuItem(
+                                    text = { Text(tx("remove_from_project")) },
+                                    onClick = {
+                                        menuFor = ""
+                                        onMove(c.id, "")
+                                    }
+                                )
+                            }
+                            DropdownMenuItem(
+                                text = { Text(tx("delete")) },
+                                onClick = {
+                                    menuFor = ""
+                                    onDelete(c.id)
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+            if (query.isBlank() && !onlyStarred && sorted.size > 8) {
+                item {
+                    Text(
+                        if (showAll) tx("show_less") else tx("show_all"),
+                        color = P.accent,
+                        fontSize = 14.sp,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { showAll = !showAll }
+                            .padding(horizontal = 12.dp, vertical = 10.dp)
+                    )
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            Box(
+                modifier = Modifier
+                    .size(52.dp)
+                    .clip(CircleShape)
+                    .background(P.accent)
+                    .clickable { onSettings() },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Filled.Settings,
+                    contentDescription = tx("settings"),
+                    tint = Color.White,
+                    modifier = Modifier.size(26.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun EmptyState(userName: String, onPick: (String) -> Unit) {
+    val suggestions = listOf(
+        tx("sug1"),
+        tx("sug2"),
+        tx("sug3"),
+        tx("sug4")
+    )
+    val shape = RoundedCornerShape(18.dp)
+    val P = LocalPal.current
+    Column(
+        modifier = Modifier.fillMaxSize().padding(24.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "Yacunne ",
+                color = P.text,
+                fontSize = 40.sp,
+                fontWeight = FontWeight.ExtraBold
+            )
+            Text(
+                "AI",
+                color = P.accent,
+                fontSize = 40.sp,
+                fontWeight = FontWeight.ExtraBold
+            )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+        val hello = if (hour < 12) tx("good_morning") else tx("good_evening")
+        val greeting = if (userName.isBlank()) hello + "!" else hello + ", " + userName.trim() + "!"
+        Text(greeting + " " + tx("ask_help"), color = P.soft, fontSize = 16.sp)
+        Spacer(modifier = Modifier.height(24.dp))
+        suggestions.forEach { s ->
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp)
+                    .clip(shape)
+                    .background(P.card)
+                    .border(0.5.dp, P.border, shape)
+                    .clickable { onPick(s) }
+                    .padding(horizontal = 16.dp, vertical = 14.dp)
+            ) {
+                Text(s, color = P.text, fontSize = 15.sp)
+            }
+        }
+    }
+}
+
+@Composable
+fun InputBar(
+    input: String,
+    onInputChange: (String) -> Unit,
+    loading: Boolean,
+    onSend: () -> Unit,
+    onStop: () -> Unit
+) {
+    val barShape = RoundedCornerShape(32.dp)
+    val P = LocalPal.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .clip(barShape)
+            .background(P.card)
+            .border(1.dp, P.border, barShape)
+            .padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        TextField(
+            value = input,
+            onValueChange = onInputChange,
+            modifier = Modifier.weight(1f),
+            maxLines = 4,
+            placeholder = {
+                Text(
+                    tx("type_here"),
+                    color = P.placeholder
+                )
+            },
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = Color.Transparent,
+                unfocusedContainerColor = Color.Transparent,
+                focusedIndicatorColor = Color.Transparent,
+                unfocusedIndicatorColor = Color.Transparent,
+                focusedTextColor = P.text,
+                unfocusedTextColor = P.text,
+                cursorColor = P.accent
+            )
+        )
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .alpha(if (!loading && input.isBlank()) 0.6f else 1f)
+                .clip(CircleShape)
+                .background(P.accent)
+                .clickable { if (loading) onStop() else onSend() },
+            contentAlignment = Alignment.Center
+        ) {
+            if (loading) {
+                Box(
+                    modifier = Modifier
+                        .size(16.dp)
+                        .background(Color.White, RoundedCornerShape(3.dp))
+                )
+            } else {
+                Icon(
+                    Icons.AutoMirrored.Filled.Send,
+                    contentDescription = tx("send"),
+                    tint = Color.White
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun ChatHeader(
+    onMenu: () -> Unit,
+    onNewChat: () -> Unit,
+    onShare: () -> Unit,
+    onDeleteChat: () -> Unit,
+    onClearAll: () -> Unit,
+    onAbout: () -> Unit
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    val P = LocalPal.current
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Filled.Menu,
+                contentDescription = tx("history"),
+                tint = P.text,
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .clickable { onMenu() }
+                    .padding(7.dp)
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            Icon(
+                Icons.Filled.Edit,
+                contentDescription = tx("new_chat"),
+                tint = P.text,
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .clickable { onNewChat() }
+                    .padding(7.dp)
+            )
+            Box {
+                Icon(
+                    Icons.Filled.MoreVert,
+                    contentDescription = tx("settings"),
+                    tint = P.text,
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .clickable { menuOpen = true }
+                        .padding(7.dp)
+                )
+                DropdownMenu(
+                    expanded = menuOpen,
+                    onDismissRequest = { menuOpen = false },
+                    modifier = Modifier.background(P.card)
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(tx("share_chat"), color = P.text) },
+                        onClick = {
+                            menuOpen = false
+                            onShare()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(tx("menu_delete"), color = P.text) },
+                        onClick = {
+                            menuOpen = false
+                            onDeleteChat()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(tx("menu_clear"), color = P.text) },
+                        onClick = {
+                            menuOpen = false
+                            onClearAll()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(tx("menu_about"), color = P.text) },
+                        onClick = {
+                            menuOpen = false
+                            onAbout()
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun MessageRow(
+    message: ChatMessage,
+    onCopy: ((String) -> Unit)?,
+    onRegenerate: (() -> Unit)? = null,
+    textSize: Int = 16
+) {
+    val P = LocalPal.current
+    if (message.fromUser) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.Top
+        ) {
+            Bubble(message.text, true, textSize, Modifier.weight(1f, fill = false))
+        }
+    } else {
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
+            Bubble(message.text, false, textSize)
+            if (onCopy != null) {
+                Row(modifier = Modifier.padding(top = 2.dp)) {
+                    Text(
+                        tx("copy"),
+                        color = P.soft,
+                        fontSize = 12.sp,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { onCopy(message.text) }
+                            .padding(horizontal = 4.dp, vertical = 4.dp)
+                    )
+                    if (onRegenerate != null) {
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            tx("regenerate"),
+                            color = P.soft,
+                            fontSize = 12.sp,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { onRegenerate() }
+                                .padding(horizontal = 4.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun Bubble(text: String, fromUser: Boolean, textSize: Int = 16, modifier: Modifier = Modifier) {
+    val P = LocalPal.current
+    if (fromUser) {
+        val shape = RoundedCornerShape(20.dp)
+        Box(
+            modifier = modifier
+                .clip(shape)
+                .background(P.userBubble)
+                .padding(horizontal = 14.dp, vertical = 10.dp)
+        ) {
+            SelectionContainer {
+                Text(text, color = P.userText, fontSize = textSize.sp)
+            }
+        }
+    } else {
+        Box(modifier = modifier) {
+            SelectionContainer {
+                Text(
+                    text,
+                    color = P.text,
+                    fontSize = textSize.sp,
+                    lineHeight = (textSize * 3 / 2).sp
+                )
+            }
+        }
+    }
+}
+
+private fun friendlyError(t: String): String = when {
+    t.startsWith("Internet ntikora") -> tx("err_network")
+    t.startsWith("Limit ya Gemini") -> tx("err_quota")
+    t.startsWith("Gemini ntiyashoboye") -> tx("err_empty")
+    else -> t
+}
+
+private fun isErrorReply(text: String): Boolean {
+    return text.startsWith("Ikosa ") ||
+        text.startsWith("Internet ntikora") ||
+        text.startsWith("Ntibishoboye") ||
+        text.startsWith("Limit ya Gemini") ||
+        text.startsWith("Gemini ntiyashoboye")
+}
+
+@Composable
+fun ErrorBanner(text: String, onRetry: () -> Unit, onClose: () -> Unit) {
+    val shape = RoundedCornerShape(16.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .clip(shape)
+            .background(Color(0xFF2A1620))
+            .border(0.5.dp, Color(0xFF7F2D45), shape)
+            .padding(12.dp)
+    ) {
+        Text(text, color = Color(0xFFFFB4C2), fontSize = 14.sp, maxLines = 4)
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            TextButton(onClick = onClose) { Text(tx("close"), color = SoftText) }
+            TextButton(onClick = onRetry) { Text(tx("retry"), color = NeonBlue) }
+        }
+    }
+}
+
+object ProfileStore {
+    private const val PREFS = "yacunne_profile"
+    private const val KEY = "name"
+
+    fun load(context: android.content.Context): String {
+        return context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
+            .getString(KEY, "") ?: ""
+    }
+
+    fun save(context: android.content.Context, name: String) {
+        context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
+            .edit().putString(KEY, name).apply()
+    }
+}
+
+data class AppSettings(
+    val fontSize: Int = 1,
+    val answerLang: String = "auto",
+    val style: String = "normal",
+    val custom: String = "",
+    val theme: String = "dark",
+    val model: String = "fast",
+    val uiLang: String = "rn"
+)
+
+object SettingsStore {
+    private const val PREFS = "yacunne_settings"
+
+    fun load(context: android.content.Context): AppSettings {
+        val p = context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
+        return AppSettings(
+            p.getInt("fontSize", 1),
+            p.getString("answerLang", "auto") ?: "auto",
+            p.getString("style", "normal") ?: "normal",
+            p.getString("custom", "") ?: "",
+            p.getString("theme", "dark") ?: "dark",
+            p.getString("model", "fast") ?: "fast",
+            p.getString("uiLang", "rn") ?: "rn"
+        )
+    }
+
+    fun save(context: android.content.Context, st: AppSettings) {
+        context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
+            .edit()
+            .putInt("fontSize", st.fontSize)
+            .putString("answerLang", st.answerLang)
+            .putString("style", st.style)
+            .putString("custom", st.custom)
+            .putString("theme", st.theme)
+            .putString("model", st.model)
+            .putString("uiLang", st.uiLang)
+            .apply()
+    }
+}
+
+@Composable
+fun SectionTitle(text: String) {
+    val P = LocalPal.current
+    Text(
+        text,
+        color = P.panelMuted,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier.padding(top = 22.dp, bottom = 8.dp, start = 4.dp)
+    )
+}
+
+@Composable
+fun SettingRow(title: String, value: String, titleColor: Color, onClick: (() -> Unit)?) {
+    val P = LocalPal.current
+    val shape = RoundedCornerShape(14.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(P.panelCard)
+            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
+            .padding(horizontal = 16.dp, vertical = 14.dp)
+    ) {
+        Text(title, color = titleColor, fontSize = 16.sp)
+        if (value.isNotEmpty()) {
+            Text(value, color = P.panelMuted, fontSize = 13.sp)
+        }
+    }
+}
+
+@Composable
+fun SettingChip(label: String, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val P = LocalPal.current
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(if (selected) P.accent else P.panelCard)
+            .clickable { onClick() }
+            .padding(vertical = 12.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            label,
+            color = if (selected) Color.White else P.panelText,
+            fontSize = 15.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+        )
+    }
+}
+
+@Composable
+fun LangPicker(
+    title: String,
+    currentLabel: String,
+    open: Boolean,
+    onToggle: () -> Unit,
+    options: List<Pair<String, String>>,
+    selected: String,
+    onPick: (String) -> Unit
+) {
+    val P = LocalPal.current
+    Text(
+        title,
+        color = P.panelText,
+        fontSize = 15.sp,
+        modifier = Modifier.padding(bottom = 8.dp, start = 4.dp)
+    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(P.panelCard)
+            .clickable { onToggle() }
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(currentLabel, color = P.panelText, fontSize = 16.sp, modifier = Modifier.weight(1f))
+        Icon(
+            if (open) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+            contentDescription = null,
+            tint = P.panelMuted
+        )
+    }
+    if (open) {
+        Spacer(modifier = Modifier.height(6.dp))
+        options.forEach { (key, label) ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 6.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(if (selected == key) P.panelSel else P.panelCard)
+                    .clickable { onPick(key) }
+                    .padding(horizontal = 16.dp, vertical = 13.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(label, color = P.panelText, fontSize = 16.sp, modifier = Modifier.weight(1f))
+                if (selected == key) {
+                    Icon(Icons.Filled.Check, contentDescription = null, tint = P.accent)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SettingsScreen(
+    settings: AppSettings,
+    userName: String,
+    onChange: (AppSettings) -> Unit,
+    onBack: () -> Unit,
+    onEditName: () -> Unit,
+    onClearAll: () -> Unit,
+    onExport: () -> Unit,
+    onAbout: () -> Unit
+) {
+    val P = LocalPal.current
+    var custom by remember { mutableStateOf(settings.custom) }
+    var uiLangOpen by remember { mutableStateOf(false) }
+    var ansLangOpen by remember { mutableStateOf(false) }
+    val uiOptions = listOf("auto" to tx("lang_auto")) + UI_LANGS
+    val ansOptions = listOf("auto" to tx("answer_lang_auto")) + ANSWER_LANGS.map {
+        it.code to (if (it.native == it.english) it.native else it.native + " (" + it.english + ")")
+    }
+    val uiLabel = uiOptions.firstOrNull { it.first == settings.uiLang }?.second ?: tx("lang_auto")
+    val ansLabel = ansOptions.firstOrNull { it.first == settings.answerLang }?.second ?: tx("answer_lang_auto")
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(P.panel)
+            .navigationBarsPadding()
+    ) {
+        Box(modifier = Modifier.fillMaxWidth().statusBarsPadding())
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = tx("back"),
+                tint = P.panelText,
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .clickable { onBack() }
+                    .padding(10.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                tx("settings"),
+                color = P.panelText,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.ExtraBold
+            )
+        }
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 24.dp)
+        ) {
+            SectionTitle(tx("sec_account"))
+            SettingRow(
+                tx("profile_name_hint"),
+                if (userName.isBlank()) tx("name_unset") else userName,
+                P.panelText
+            ) { onEditName() }
+            Spacer(modifier = Modifier.height(8.dp))
+            SettingRow(tx("login_title"), tx("login_sub"), P.panelMuted, null)
+
+            SectionTitle(tx("sec_language"))
+            LangPicker(
+                tx("app_language"), uiLabel, uiLangOpen,
+                { uiLangOpen = !uiLangOpen }, uiOptions, settings.uiLang
+            ) {
+                onChange(settings.copy(uiLang = it))
+                uiLangOpen = false
+            }
+
+            SectionTitle(tx("sec_appearance"))
+            Text(tx("color_mode"), color = P.panelText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SettingChip(tx("mode_dark"), settings.theme == "dark", Modifier.weight(1f)) { onChange(settings.copy(theme = "dark")) }
+                SettingChip(tx("mode_light"), settings.theme == "light", Modifier.weight(1f)) { onChange(settings.copy(theme = "light")) }
+                SettingChip(tx("mode_system"), settings.theme == "system", Modifier.weight(1f)) { onChange(settings.copy(theme = "system")) }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(tx("text_size"), color = P.panelText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SettingChip(tx("size_s"), settings.fontSize == 0, Modifier.weight(1f)) { onChange(settings.copy(fontSize = 0)) }
+                SettingChip(tx("size_m"), settings.fontSize == 1, Modifier.weight(1f)) { onChange(settings.copy(fontSize = 1)) }
+                SettingChip(tx("size_l"), settings.fontSize == 2, Modifier.weight(1f)) { onChange(settings.copy(fontSize = 2)) }
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                tx("size_preview"),
+                color = P.panelText,
+                fontSize = (if (settings.fontSize == 0) 14 else if (settings.fontSize == 2) 18 else 16).sp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(P.panelCard)
+                    .padding(horizontal = 16.dp, vertical = 14.dp)
+            )
+
+            SectionTitle(tx("sec_answers"))
+            Text(tx("answer_style"), color = P.panelText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SettingChip(tx("style_short"), settings.style == "short", Modifier.weight(1f)) { onChange(settings.copy(style = "short")) }
+                SettingChip(tx("style_normal"), settings.style == "normal", Modifier.weight(1f)) { onChange(settings.copy(style = "normal")) }
+                SettingChip(tx("style_long"), settings.style == "long", Modifier.weight(1f)) { onChange(settings.copy(style = "long")) }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            LangPicker(
+                tx("answer_lang"), ansLabel, ansLangOpen,
+                { ansLangOpen = !ansLangOpen }, ansOptions, settings.answerLang
+            ) {
+                onChange(settings.copy(answerLang = it))
+                ansLangOpen = false
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(tx("intelligence"), color = P.panelText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SettingChip(tx("intel_fast"), settings.model == "fast", Modifier.weight(1f)) { onChange(settings.copy(model = "fast")) }
+                SettingChip(tx("intel_pro"), settings.model == "pro", Modifier.weight(1f)) { onChange(settings.copy(model = "pro")) }
+            }
+            Text(
+                tx("intel_note"),
+                color = P.panelMuted,
+                fontSize = 13.sp,
+                modifier = Modifier.padding(top = 8.dp, start = 4.dp)
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(tx("custom_title"), color = P.panelText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
+            TextField(
+                value = custom,
+                onValueChange = {
+                    custom = it.take(500)
+                    onChange(settings.copy(custom = custom))
+                },
+                modifier = Modifier.fillMaxWidth(),
+                maxLines = 6,
+                shape = RoundedCornerShape(14.dp),
+                placeholder = { Text(tx("custom_hint"), color = P.panelMuted) },
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = P.panelCard,
+                    unfocusedContainerColor = P.panelCard,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    focusedTextColor = P.panelText,
+                    unfocusedTextColor = P.panelText,
+                    cursorColor = P.accent
+                )
+            )
+            Text(
+                tx("custom_note"),
+                color = P.panelMuted,
+                fontSize = 13.sp,
+                modifier = Modifier.padding(top = 8.dp, start = 4.dp)
+            )
+
+            SectionTitle(tx("sec_chats"))
+            SettingRow(tx("export_title"), tx("export_sub"), P.panelText) { onExport() }
+            Spacer(modifier = Modifier.height(8.dp))
+            SettingRow(tx("clear_all_title"), tx("clear_all_sub"), Color(0xFFDC2626)) { onClearAll() }
+
+            SectionTitle(tx("connectors_title"))
+            SettingRow("Google Calendar, Gmail, Drive, WhatsApp", tx("connectors_sub"), P.panelMuted, null)
+
+            SectionTitle(tx("sec_about"))
+            SettingRow(tx("about_title"), tx("about_sub"), P.panelText) { onAbout() }
+        }
+    }
+}
+
+@Composable
+fun ThinkingIndicator() {
+    val P = LocalPal.current
+    val phrases = listOf(
+        tx("think1"),
+        tx("think2"),
+        tx("think3"),
+        tx("think4")
+    )
+    var seconds by remember { mutableStateOf(0) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1000)
+            seconds++
+        }
+    }
+    val phrase = phrases[(seconds / 3) % phrases.size]
+    val transition = rememberInfiniteTransition(label = "dots")
+    Row(
+        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        for (i in 0 until 3) {
+            val a by transition.animateFloat(
+                initialValue = 0.25f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(durationMillis = 600, delayMillis = i * 150),
+                    repeatMode = RepeatMode.Reverse
+                ),
+                label = "dot" + i
+            )
+            Box(
+                modifier = Modifier
+                    .padding(end = 4.dp)
+                    .size(8.dp)
+                    .alpha(a)
+                    .background(P.accent, CircleShape)
+            )
+        }
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            phrase + "..." + (if (seconds >= 5) " (" + seconds + "s)" else ""),
+            color = P.soft,
+            fontSize = 14.sp,
+            fontStyle = FontStyle.Italic
+        )
+    }
+}
