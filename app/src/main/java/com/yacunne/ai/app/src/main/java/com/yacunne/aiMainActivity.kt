@@ -229,6 +229,7 @@ fun ChatScreen() {
     var showProjectDialog by remember { mutableStateOf(false) }
     var showProfile by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
+    var showConnect by remember { mutableStateOf(false) }
     var settings by remember { mutableStateOf(SettingsStore.load(context)) }
     val textSize = when (settings.fontSize) {
         0 -> 14
@@ -381,6 +382,9 @@ fun ChatScreen() {
         setPreferredModel(settings.model)
         val conv = conversations.first { it.id == convId }
         val history = conv.messages
+        val activeAi = ConnectStore.active(context)
+        val aiKey = if (activeAi == "yacunne") "" else ConnectStore.key(context, activeAi)
+        val aiModel = ConnectStore.model(context, activeAi)
         val extra = buildExtra(
             conv.mode,
             projects.firstOrNull { it.id == conv.projectId }?.instructions ?: "",
@@ -392,7 +396,11 @@ fun ChatScreen() {
             val result = java.util.concurrent.atomic.AtomicReference("")
             val done = java.util.concurrent.atomic.AtomicBoolean(false)
             launch {
-                val r = askGeminiStream(history, extra) { target.set(it) }
+                val r = if (aiKey.isNotBlank()) {
+                    askProvider(activeAi, aiKey, aiModel, history, extra)
+                } else {
+                    askGeminiStream(history, extra) { target.set(it) }
+                }
                 if (!isErrorReply(r)) target.set(r)
                 result.set(r)
                 done.set(true)
@@ -747,8 +755,13 @@ fun ChatScreen() {
                         onEditName = { showProfile = true },
                         onClearAll = { showClearConfirm = true },
                         onExport = { shareAll() },
-                        onAbout = { showAbout = true }
+                        onAbout = { showAbout = true },
+                        onConnect = { showConnect = true }
                     )
+                }
+                if (showConnect) {
+                    BackHandler { showConnect = false }
+                    ConnectScreen(onBack = { showConnect = false })
                 }
             }
         }
@@ -785,14 +798,6 @@ private fun modeInstruction(mode: String): String = when (mode) {
 
 private fun settingsInstruction(st: AppSettings): String {
     var t = ""
-    val lang = ANSWER_LANGS.firstOrNull { it.code == st.answerLang }
-    if (lang != null) {
-        t += when (lang.code) {
-            "rn" -> " Always answer in real Kirundi (the language of Burundi, not Kinyarwanda) unless the user asks for another language."
-            "rw" -> " Always answer in Kinyarwanda (not Kirundi) unless the user asks for another language."
-            else -> " Always answer in " + lang.english + " unless the user asks for another language."
-        }
-    }
     when (st.style) {
         "short" -> t += " ANSWER LENGTH: keep answers short and to the point."
         "long" -> t += " ANSWER LENGTH: give detailed and thorough answers."
@@ -1692,18 +1697,14 @@ fun SettingsScreen(
     onEditName: () -> Unit,
     onClearAll: () -> Unit,
     onExport: () -> Unit,
-    onAbout: () -> Unit
+    onAbout: () -> Unit,
+    onConnect: () -> Unit
 ) {
     val P = LocalPal.current
     var custom by remember { mutableStateOf(settings.custom) }
     var uiLangOpen by remember { mutableStateOf(false) }
-    var ansLangOpen by remember { mutableStateOf(false) }
     val uiOptions = listOf("auto" to tx("lang_auto")) + UI_LANGS
-    val ansOptions = listOf("auto" to tx("answer_lang_auto")) + ANSWER_LANGS.map {
-        it.code to (if (it.native == it.english) it.native else it.native + " (" + it.english + ")")
-    }
     val uiLabel = uiOptions.firstOrNull { it.first == settings.uiLang }?.second ?: tx("lang_auto")
-    val ansLabel = ansOptions.firstOrNull { it.first == settings.answerLang }?.second ?: tx("answer_lang_auto")
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1792,14 +1793,6 @@ fun SettingsScreen(
                 SettingChip(tx("style_long"), settings.style == "long", Modifier.weight(1f)) { onChange(settings.copy(style = "long")) }
             }
             Spacer(modifier = Modifier.height(16.dp))
-            LangPicker(
-                tx("answer_lang"), ansLabel, ansLangOpen,
-                { ansLangOpen = !ansLangOpen }, ansOptions, settings.answerLang
-            ) {
-                onChange(settings.copy(answerLang = it))
-                ansLangOpen = false
-            }
-            Spacer(modifier = Modifier.height(16.dp))
             Text(tx("intelligence"), color = P.panelText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 SettingChip(tx("intel_fast"), settings.model == "fast", Modifier.weight(1f)) { onChange(settings.copy(model = "fast")) }
@@ -1846,7 +1839,7 @@ fun SettingsScreen(
             SettingRow(tx("clear_all_title"), tx("clear_all_sub"), Color(0xFFDC2626)) { onClearAll() }
 
             SectionTitle(tx("connectors_title"))
-            SettingRow("Google Calendar, Gmail, Drive, WhatsApp", tx("connectors_sub"), P.panelMuted, null)
+            SettingRow(tx("connect_title"), tx("connect_sub"), P.panelText) { onConnect() }
 
             SectionTitle(tx("sec_about"))
             SettingRow(tx("about_title"), tx("about_sub"), P.panelText) { onAbout() }
