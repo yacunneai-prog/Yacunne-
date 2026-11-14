@@ -193,7 +193,7 @@ class MainActivity : ComponentActivity() {
         UiLang.current = resolveUiLang(SettingsStore.load(this).uiLang)
         setContent {
             MaterialTheme(colorScheme = NeonColors) {
-                ChatScreen()
+                AuthGate { ChatScreen() }
             }
         }
     }
@@ -1840,6 +1840,10 @@ fun SettingsScreen(
 
             SectionTitle(tx("connectors_title"))
             SettingRow(tx("connect_title"), tx("connect_sub"), P.panelText) { onConnect() }
+
+            val authCtx = androidx.compose.ui.platform.LocalContext.current
+            SectionTitle("Konti / Account")
+            SettingRow(AuthStore.email(authCtx).ifBlank { "Guest" }, "Sohoka / Sign out", Color(0xFFDC2626)) { AuthStore.signOut(authCtx) }
 
             SectionTitle(tx("sec_about"))
             SettingRow(tx("about_title"), tx("about_sub"), P.panelText) { onAbout() }
