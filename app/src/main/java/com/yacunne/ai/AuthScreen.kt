@@ -1,6 +1,8 @@
 package com.yacunne.ai
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -49,6 +51,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLDecoder
 
 // ---- Supabase (project ya Yacunne). Iyi key ni rusange (publishable), ntacyo itwaye. ----
 private const val SUPABASE_URL = "https://wmjhjyauqoarplbkhhnw.supabase.co"
@@ -78,6 +81,59 @@ object AuthStore {
         sp(c).edit().clear().apply()
         AuthState.ok = false
     }
+}
+
+// Umushyitsi (nta konti) akoresha chat gusa. Ibindi bisaba konti.
+fun requireAccount(ctx: Context, action: () -> Unit) {
+    if (AuthStore.hasSession(ctx)) {
+        action()
+    } else {
+        android.widget.Toast.makeText(
+            ctx,
+            if (UiLang.current == "rn") "Ibi bisaba konti. Banza wiyandikishe canke winjire."
+            else "This needs an account. Please sign up or sign in first.",
+            android.widget.Toast.LENGTH_LONG
+        ).show()
+        AuthStore.signOut(ctx)
+    }
+}
+
+// Google / Facebook: dufungura mushakisha, hanyuma Supabase igasubiza app kuri yacunne://auth
+fun startOAuth(ctx: Context, provider: String) {
+    val url = SUPABASE_URL + "/auth/v1/authorize?provider=" + provider +
+        "&redirect_to=" + Uri.encode("yacunne://auth")
+    try {
+        ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+    } catch (e: Exception) {
+        android.widget.Toast.makeText(ctx, "Ntibishobotse gufungura mushakisha.", android.widget.Toast.LENGTH_LONG).show()
+    }
+}
+
+fun handleAuthCallback(ctx: Context, uri: Uri?) {
+    if (uri == null || uri.scheme != "yacunne" || uri.host != "auth") return
+    val frag = uri.fragment ?: return
+    val m = HashMap<String, String>()
+    for (p in frag.split("&")) {
+        val i = p.indexOf("=")
+        if (i > 0) m[p.substring(0, i)] = URLDecoder.decode(p.substring(i + 1), "UTF-8")
+    }
+    val access = m["access_token"] ?: return
+    val refresh = m["refresh_token"] ?: ""
+    Thread {
+        var mail = ""
+        try {
+            val c = URL(SUPABASE_URL + "/auth/v1/user").openConnection() as HttpURLConnection
+            c.setRequestProperty("apikey", SUPABASE_KEY)
+            c.setRequestProperty("Authorization", "Bearer " + access)
+            c.connectTimeout = 15000
+            c.readTimeout = 15000
+            val txt = c.inputStream.bufferedReader().use { it.readText() }
+            mail = JSONObject(txt).optString("email", "")
+            c.disconnect()
+        } catch (e: Exception) {
+        }
+        AuthStore.saveSession(ctx, access, refresh, mail)
+    }.start()
 }
 
 private fun au(rn: String, en: String): String = if (UiLang.current == "rn") rn else en
@@ -330,8 +386,33 @@ fun AuthScreen() {
                     Text(au("Wibagiwe ijambo ry'ibanga?", "Forgot password?"), color = Color(0xFF94A3B8))
                 }
             }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(au("canke", "or"), color = Color(0xFF94A3B8), fontSize = 13.sp)
+            Spacer(modifier = Modifier.height(12.dp))
+            Button(
+                onClick = { startOAuth(ctx, "google") },
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF1F2937)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp)
+            ) {
+                Text(au("Komeza na Google", "Continue with Google"), fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            Button(
+                onClick = { startOAuth(ctx, "facebook") },
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1877F2), contentColor = Color.White),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp)
+            ) {
+                Text(au("Komeza na Facebook", "Continue with Facebook"), fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            }
+            Spacer(modifier = Modifier.height(10.dp))
             TextButton(onClick = { AuthStore.setGuest(ctx) }) {
-                Text(au("Komeza udafise konti", "Continue without an account"), color = Color(0xFF94A3B8))
+                Text(au("Komeza udafise konti (chat gusa)", "Continue without an account (chat only)"), color = Color(0xFF94A3B8))
             }
         }
     }
