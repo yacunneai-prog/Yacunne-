@@ -196,6 +196,13 @@ class MainActivity : ComponentActivity() {
                 AuthGate { ChatScreen() }
             }
         }
+        handleAuthCallback(this, intent?.data)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleAuthCallback(this, intent.data)
     }
 }
 
@@ -497,8 +504,10 @@ fun ChatScreen() {
                                     activeProjectId = if (activeProjectId == id) "" else id
                                 },
                                 onNewProject = {
-                                    editingProject = null
-                                    showProjectDialog = true
+                                    requireAccount(context) {
+                                        editingProject = null
+                                        showProjectDialog = true
+                                    }
                                 },
                                 onEditProject = { p ->
                                     editingProject = p
@@ -754,9 +763,9 @@ fun ChatScreen() {
                         onBack = { showSettings = false },
                         onEditName = { showProfile = true },
                         onClearAll = { showClearConfirm = true },
-                        onExport = { shareAll() },
+                        onExport = { requireAccount(context) { shareAll() } },
                         onAbout = { showAbout = true },
-                        onConnect = { showConnect = true }
+                        onConnect = { requireAccount(context) { showConnect = true } }
                     )
                 }
                 if (showConnect) {
@@ -1634,6 +1643,63 @@ fun SettingChip(label: String, selected: Boolean, modifier: Modifier, onClick: (
 }
 
 @Composable
+fun OptionPicker(
+    title: String,
+    options: List<Pair<String, String>>,
+    selected: String,
+    closeOnPick: Boolean = true,
+    footer: @Composable () -> Unit = {},
+    onPick: (String) -> Unit
+) {
+    val P = LocalPal.current
+    var open by remember { mutableStateOf(false) }
+    val currentLabel = options.firstOrNull { it.first == selected }?.second ?: ""
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 8.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(P.panelCard)
+            .clickable { open = !open }
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(title, color = P.panelText, fontSize = 16.sp, modifier = Modifier.weight(1f))
+        Text(currentLabel, color = P.panelMuted, fontSize = 14.sp)
+        Spacer(modifier = Modifier.width(6.dp))
+        Icon(
+            if (open) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+            contentDescription = null,
+            tint = P.panelMuted
+        )
+    }
+    if (open) {
+        options.forEach { (key, label) ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 6.dp, start = 12.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(if (selected == key) P.panelSel else P.panelCard)
+                    .clickable {
+                        onPick(key)
+                        if (closeOnPick) open = false
+                    }
+                    .padding(horizontal = 16.dp, vertical = 13.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(label, color = P.panelText, fontSize = 16.sp, modifier = Modifier.weight(1f))
+                if (selected == key) {
+                    Icon(Icons.Filled.Check, contentDescription = null, tint = P.accent)
+                }
+            }
+        }
+        footer()
+        Spacer(modifier = Modifier.height(4.dp))
+    }
+}
+
+@Composable
 fun LangPicker(
     title: String,
     currentLabel: String,
@@ -1741,70 +1807,57 @@ fun SettingsScreen(
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 24.dp)
         ) {
-            SectionTitle(tx("sec_account"))
-            SettingRow(
-                tx("profile_name_hint"),
-                if (userName.isBlank()) tx("name_unset") else userName,
-                P.panelText
-            ) { onEditName() }
-            Spacer(modifier = Modifier.height(8.dp))
-            SettingRow(tx("login_title"), tx("login_sub"), P.panelMuted, null)
-
             SectionTitle(tx("sec_language"))
-            LangPicker(
-                tx("app_language"), uiLabel, uiLangOpen,
-                { uiLangOpen = !uiLangOpen }, uiOptions, settings.uiLang
-            ) {
-                onChange(settings.copy(uiLang = it))
-                uiLangOpen = false
-            }
+            OptionPicker(
+                tx("app_language"), uiOptions, settings.uiLang
+            ) { onChange(settings.copy(uiLang = it)) }
 
             SectionTitle(tx("sec_appearance"))
-            Text(tx("color_mode"), color = P.panelText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SettingChip(tx("mode_dark"), settings.theme == "dark", Modifier.weight(1f)) { onChange(settings.copy(theme = "dark")) }
-                SettingChip(tx("mode_light"), settings.theme == "light", Modifier.weight(1f)) { onChange(settings.copy(theme = "light")) }
-                SettingChip(tx("mode_system"), settings.theme == "system", Modifier.weight(1f)) { onChange(settings.copy(theme = "system")) }
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(tx("text_size"), color = P.panelText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SettingChip(tx("size_s"), settings.fontSize == 0, Modifier.weight(1f)) { onChange(settings.copy(fontSize = 0)) }
-                SettingChip(tx("size_m"), settings.fontSize == 1, Modifier.weight(1f)) { onChange(settings.copy(fontSize = 1)) }
-                SettingChip(tx("size_l"), settings.fontSize == 2, Modifier.weight(1f)) { onChange(settings.copy(fontSize = 2)) }
-            }
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(
-                tx("size_preview"),
-                color = P.panelText,
-                fontSize = (if (settings.fontSize == 0) 14 else if (settings.fontSize == 2) 18 else 16).sp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(P.panelCard)
-                    .padding(horizontal = 16.dp, vertical = 14.dp)
-            )
+            OptionPicker(
+                tx("color_mode"),
+                listOf("dark" to tx("mode_dark"), "light" to tx("mode_light"), "system" to tx("mode_system")),
+                settings.theme
+            ) { onChange(settings.copy(theme = it)) }
+            OptionPicker(
+                tx("text_size"),
+                listOf("0" to tx("size_s"), "1" to tx("size_m"), "2" to tx("size_l")),
+                settings.fontSize.toString(),
+                closeOnPick = false,
+                footer = {
+                    Text(
+                        tx("size_preview"),
+                        color = P.panelText,
+                        fontSize = (if (settings.fontSize == 0) 14 else if (settings.fontSize == 2) 18 else 16).sp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 6.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(P.panelCard)
+                            .padding(horizontal = 16.dp, vertical = 14.dp)
+                    )
+                }
+            ) { onChange(settings.copy(fontSize = it.toInt())) }
 
             SectionTitle(tx("sec_answers"))
-            Text(tx("answer_style"), color = P.panelText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SettingChip(tx("style_short"), settings.style == "short", Modifier.weight(1f)) { onChange(settings.copy(style = "short")) }
-                SettingChip(tx("style_normal"), settings.style == "normal", Modifier.weight(1f)) { onChange(settings.copy(style = "normal")) }
-                SettingChip(tx("style_long"), settings.style == "long", Modifier.weight(1f)) { onChange(settings.copy(style = "long")) }
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(tx("intelligence"), color = P.panelText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SettingChip(tx("intel_fast"), settings.model == "fast", Modifier.weight(1f)) { onChange(settings.copy(model = "fast")) }
-                SettingChip(tx("intel_pro"), settings.model == "pro", Modifier.weight(1f)) { onChange(settings.copy(model = "pro")) }
-            }
-            Text(
-                tx("intel_note"),
-                color = P.panelMuted,
-                fontSize = 13.sp,
-                modifier = Modifier.padding(top = 8.dp, start = 4.dp)
-            )
-            Spacer(modifier = Modifier.height(10.dp))
+            OptionPicker(
+                tx("answer_style"),
+                listOf("short" to tx("style_short"), "normal" to tx("style_normal"), "long" to tx("style_long")),
+                settings.style
+            ) { onChange(settings.copy(style = it)) }
+            OptionPicker(
+                tx("intelligence"),
+                listOf("fast" to tx("intel_fast"), "pro" to tx("intel_pro")),
+                settings.model,
+                footer = {
+                    Text(
+                        tx("intel_note"),
+                        color = P.panelMuted,
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(bottom = 6.dp, start = 4.dp)
+                    )
+                }
+            ) { onChange(settings.copy(model = it)) }
+            Spacer(modifier = Modifier.height(6.dp))
             Text(tx("custom_title"), color = P.panelText, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
             TextField(
                 value = custom,
@@ -1842,8 +1895,34 @@ fun SettingsScreen(
             SettingRow(tx("connect_title"), tx("connect_sub"), P.panelText) { onConnect() }
 
             val authCtx = androidx.compose.ui.platform.LocalContext.current
-            SectionTitle("Konti / Account")
-            SettingRow(AuthStore.email(authCtx).ifBlank { "Guest" }, "Sohoka / Sign out", Color(0xFFDC2626)) { AuthStore.signOut(authCtx) }
+            val rnUi = UiLang.current == "rn"
+            SectionTitle(if (rnUi) "Konti" else "Account")
+            SettingRow(
+                tx("profile_name_hint"),
+                if (userName.isBlank()) tx("name_unset") else userName,
+                P.panelText
+            ) { onEditName() }
+            Spacer(modifier = Modifier.height(8.dp))
+            if (AuthStore.hasSession(authCtx)) {
+                SettingRow(
+                    AuthStore.email(authCtx).ifBlank { if (rnUi) "Konti yawe" else "Your account" },
+                    if (rnUi) "Winjiye" else "Signed in",
+                    P.panelText,
+                    null
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                SettingRow(
+                    if (rnUi) "Sohoka" else "Sign out",
+                    if (rnUi) "Uvanye muri konti kuri iyi telefone." else "Sign out of your account on this phone.",
+                    Color(0xFFDC2626)
+                ) { AuthStore.signOut(authCtx) }
+            } else {
+                SettingRow(
+                    if (rnUi) "Injira canke wiyandikishe" else "Sign in or sign up",
+                    if (rnUi) "Ubu ukoresha chat gusa. Konti ikwemerera ibindi vyose." else "You can only chat now. An account unlocks everything else.",
+                    P.accent
+                ) { AuthStore.signOut(authCtx) }
+            }
 
             SectionTitle(tx("sec_about"))
             SettingRow(tx("about_title"), tx("about_sub"), P.panelText) { onAbout() }
